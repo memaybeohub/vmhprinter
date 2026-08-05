@@ -15,13 +15,13 @@ const uploadBtn = document.getElementById('uploadBtn');
 const loading = document.getElementById('loading');
 
 let selectedFiles = [];
+let currentTotalPrice = 0; // Biến lưu số tiền
 
 // 1. Khởi tạo mặc định khi tải trang
 document.addEventListener('DOMContentLoaded', () => {
     const savedName = localStorage.getItem('userName');
     if (savedName) fullNameInput.value = savedName;
 
-    // SỬA Ở ĐÂY: Dùng .placeholder thay vì .value để tạo text ẩn
     const today = new Date();
     const dateStr = `${today.getDate()}/${today.getMonth() + 1}`;
     deliveryTimeInput.placeholder = `18H chiều nay (${dateStr})`;
@@ -106,8 +106,9 @@ async function handleFiles(files) {
     }
 
     totalPagesEl.textContent = totalPages;
-    const price = Math.floor(totalPages / 4) * 1000;
-    totalPriceEl.textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
+    // Lưu lại số tiền để lát nữa gửi lên Backend
+    currentTotalPrice = Math.floor(totalPages / 4) * 1000;
+    totalPriceEl.textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
 }
 
 async function countPdfPages(file) {
@@ -134,7 +135,6 @@ uploadBtn.addEventListener('click', async () => {
     const name = fullNameInput.value.trim();
     const coords = coordinatesInput.value.trim();
     
-    // SỬA Ở ĐÂY: Nếu khách không nhập gì, lấy text từ placeholder
     let delivery = deliveryTimeInput.value.trim();
     if (!delivery) {
         delivery = deliveryTimeInput.placeholder; 
@@ -151,6 +151,7 @@ uploadBtn.addEventListener('click', async () => {
     formData.append('fullName', name);
     formData.append('coordinates', coords);
     formData.append('deliveryTime', delivery);
+    formData.append('totalPrice', currentTotalPrice); // GỬI SỐ TIỀN VÀO ĐÂY
     
     selectedFiles.forEach(obj => {
         formData.append('files', obj.file);
@@ -166,6 +167,7 @@ uploadBtn.addEventListener('click', async () => {
         if (response.ok) {
             alert('Tải lên thành công! Cửa hàng đã nhận được yêu cầu của bạn.');
             selectedFiles = [];
+            currentTotalPrice = 0; // Reset tiền
             fileTableBody.innerHTML = '';
             fileListContainer.classList.add('hidden');
             fileInput.value = '';

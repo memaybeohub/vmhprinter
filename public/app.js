@@ -2,6 +2,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 
 const fullNameInput = document.getElementById('fullName');
 const coordinatesInput = document.getElementById('coordinates');
+const deliveryTimeInput = document.getElementById('deliveryTime');
 const getLocationBtn = document.getElementById('getLocationBtn');
 const locationError = document.getElementById('locationError');
 const dropzone = document.getElementById('dropzone');
@@ -15,36 +16,51 @@ const loading = document.getElementById('loading');
 
 let selectedFiles = [];
 
-// 1. Quản lý LocalStorage cho Họ Tên
+// 1. Khởi tạo mặc định khi tải trang
 document.addEventListener('DOMContentLoaded', () => {
+    // Tải tên đã lưu
     const savedName = localStorage.getItem('userName');
     if (savedName) fullNameInput.value = savedName;
+
+    // Gán Giờ giao hàng mặc định
+    const today = new Date();
+    const dateStr = `${today.getDate()}/${today.getMonth() + 1}`;
+    deliveryTimeInput.value = `18H chiều nay (${dateStr})`;
 });
 
 fullNameInput.addEventListener('input', (e) => {
     localStorage.setItem('userName', e.target.value);
 });
 
-// 2. Logic Lấy Toạ Độ (GPS)
+// 2. Logic Lấy Toạ Độ (Đã sửa lỗi Spam)
 getLocationBtn.addEventListener('click', () => {
     if (navigator.geolocation) {
         getLocationBtn.textContent = "Đang lấy...";
+        getLocationBtn.disabled = true; // Khoá nút chống spam
+        getLocationBtn.classList.add('opacity-70', 'cursor-not-allowed');
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const lat = position.coords.latitude;
                 const lng = position.coords.longitude;
                 coordinatesInput.value = `${lat}, ${lng}`;
+                
                 getLocationBtn.textContent = "Đã lấy ✓";
+                getLocationBtn.classList.remove('opacity-70', 'cursor-not-allowed');
                 getLocationBtn.classList.replace('bg-green-600', 'bg-gray-600');
                 getLocationBtn.classList.replace('hover:bg-green-700', 'hover:bg-gray-700');
+                getLocationBtn.disabled = false;
                 locationError.classList.add('hidden');
             },
             (error) => {
                 console.error(error);
                 getLocationBtn.textContent = "Lấy vị trí";
+                getLocationBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                getLocationBtn.disabled = false;
                 locationError.classList.remove('hidden');
             },
-            { enableHighAccuracy: true } // Yêu cầu độ chính xác cao
+            // Tắt High Accuracy và thêm Timeout để chạy mượt hơn
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
         );
     } else {
         alert("Trình duyệt của bạn không hỗ trợ lấy vị trí.");
@@ -62,19 +78,17 @@ dropzone.addEventListener('drop', (e) => {
 });
 fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
 
-// 4. Hàm xử lý file và đếm trang
+// 4. Hàm đếm trang
 async function handleFiles(files) {
     if (files.length === 0) return;
     
     fileListContainer.classList.remove('hidden');
     selectedFiles = [];
     fileTableBody.innerHTML = '';
-    
     let totalPages = 0;
 
     for (const file of files) {
         let pages = 0;
-        
         const tr = document.createElement('tr');
         tr.innerHTML = `<td class="p-3 border truncate max-w-xs" title="${file.name}">${file.name}</td>
                         <td class="p-3 border text-center" id="page-count-${file.name.replace(/[^a-zA-Z0-9]/g, '')}">Đang tính...</td>`;
@@ -85,20 +99,16 @@ async function handleFiles(files) {
         } else if (file.name.endsWith('.docx')) {
             pages = await countDocxPages(file);
         } else if (file.type.startsWith('image/')) {
-            pages = 1; // ẢNH NAY ĐÃ TÍNH LÀ 1 TRANG
+            pages = 1;
         }
 
         selectedFiles.push({ file, pages });
         totalPages += pages;
-
         document.getElementById(`page-count-${file.name.replace(/[^a-zA-Z0-9]/g, '')}`).textContent = pages;
     }
 
     totalPagesEl.textContent = totalPages;
-    
-    // CẬP NHẬT CÁCH TÍNH TIỀN: Nhân 1000 để ra nghìn đồng
     const price = Math.floor(totalPages / 4) * 1000;
-    // Format thành dạng: 25.000 ₫
     totalPriceEl.textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
 }
 
@@ -125,9 +135,10 @@ async function countDocxPages(file) {
 uploadBtn.addEventListener('click', async () => {
     const name = fullNameInput.value.trim();
     const coords = coordinatesInput.value.trim();
+    const delivery = deliveryTimeInput.value.trim();
 
     if (!name) return alert('Vui lòng nhập Họ và Tên!');
-    if (!coords) return alert('Vui lòng bấm nút "Lấy vị trí" để lấy toạ độ giao hàng!');
+    if (!coords) return alert('Vui lòng cung cấp vị trí giao hàng!');
     if (selectedFiles.length === 0) return alert('Vui lòng chọn ít nhất 1 tệp!');
 
     uploadBtn.disabled = true;
@@ -135,7 +146,9 @@ uploadBtn.addEventListener('click', async () => {
     
     const formData = new FormData();
     formData.append('fullName', name);
-    formData.append('coordinates', coords); // Gửi toạ độ lên server
+    formData.append('coordinates', coords);
+    formData.append('deliveryTime', delivery); // Gửi giờ giao hàng
+    
     selectedFiles.forEach(obj => {
         formData.append('files', obj.file);
     });
@@ -153,6 +166,8 @@ uploadBtn.addEventListener('click', async () => {
             fileTableBody.innerHTML = '';
             fileListContainer.classList.add('hidden');
             fileInput.value = '';
+            
+            // Khôi phục lại nút GPS
             coordinatesInput.value = '';
             getLocationBtn.textContent = "Lấy vị trí";
             getLocationBtn.classList.replace('bg-gray-600', 'bg-green-600');

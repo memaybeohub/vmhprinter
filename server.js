@@ -8,26 +8,31 @@ require('dotenv').config();
 
 const app = express();
 app.use(cors());
-app.use(express.static('public')); // Phục vụ file tĩnh (Frontend)
+app.use(express.static('public')); 
 app.use(express.json());
 
-// Cấu hình Multer để lưu file tạm thời
 const upload = multer({ dest: 'uploads/' });
 
-// Xác thực Google Drive API bằng Service Account
-const auth = new google.auth.GoogleAuth({
-    credentials: {
-        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-    },
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
-});
-const drive = google.drive({ version: 'v3', auth });
+// ==========================================
+// CẤU HÌNH OAUTH2 (THAY THẾ SERVICE ACCOUNT)
+// ==========================================
+const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    "https://developers.google.com/oauthplayground"
+);
 
-// Hàm tìm hoặc tạo thư mục trên Google Drive
+// Dùng Refresh Token để máy chủ không bao giờ bị văng đăng nhập
+oauth2Client.setCredentials({
+    refresh_token: process.env.GOOGLE_REFRESH_TOKEN
+});
+
+const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+// Hàm tìm hoặc tạo thư mục
 async function findOrCreateFolder(folderName, parentId) {
     if (!parentId || parentId.trim() === '') {
-        throw new Error("Lỗi: Không tìm thấy ID thư mục cha! Hãy kiểm tra lại biến DRIVE_PARENT_FOLDER_ID trên Render.");
+        throw new Error("Lỗi: Không tìm thấy ID thư mục cha!");
     }
     
     try {
@@ -35,7 +40,7 @@ async function findOrCreateFolder(folderName, parentId) {
         const response = await drive.files.list({ q: query, spaces: 'drive', fields: 'files(id, name)' });
 
         if (response.data.files.length > 0) {
-            return response.data.files[0].id; // Đã tồn tại
+            return response.data.files[0].id;
         }
 
         const fileMetadata = {
@@ -50,7 +55,7 @@ async function findOrCreateFolder(folderName, parentId) {
         return folder.data.id;
     } catch (error) {
         console.error(`Lỗi khi tìm/tạo folder ${folderName}:`, error.message);
-        throw error; // Ném lỗi ra ngoài để API bắt được
+        throw error;
     }
 }
 
@@ -61,23 +66,19 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         const files = req.files;
         const rootFolderId = process.env.DRIVE_PARENT_FOLDER_ID;
 
-        // Bẫy lỗi cấu hình biến môi trường
         if (!rootFolderId || rootFolderId.includes('http')) {
-            throw new Error("Cấu hình DRIVE_PARENT_FOLDER_ID bị sai. Chỉ copy mã ID, không được chứa cả đường link https://...");
+            throw new Error("Cấu hình DRIVE_PARENT_FOLDER_ID bị sai.");
         }
         if (files.length === 0) {
             throw new Error("Không có file nào được gửi lên.");
         }
 
-        // 1. Lấy ngày hiện tại
         const today = new Date();
         const dateString = `${today.getDate()}/${today.getMonth() + 1}`;
 
-        // 2. Tìm/Tạo thư mục Ngày và thư mục User
         const dateFolderId = await findOrCreateFolder(dateString, rootFolderId);
         const userFolderId = await findOrCreateFolder(userName, dateFolderId);
 
-        // 3. Upload từng file
         const uploadPromises = files.map(async (file) => {
             const fileMetadata = { name: file.originalname, parents: [userFolderId] };
             const media = { mimeType: file.mimetype, body: fs.createReadStream(file.path) };
@@ -88,15 +89,12 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
                 fields: 'id'
             });
 
-            fs.unlinkSync(file.path); // Xóa file tạm
+            fs.unlinkSync(file.path); 
             return uploadedFile.data.id;
         });
 
         await Promise.all(uploadPromises);
 
-        // ==========================================
-        // 4. BẮN THÔNG BÁO VỀ DISCORD WEBHOOK
-        // ==========================================
         const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
         if (webhookUrl) {
             const folderLink = `https://drive.google.com/drive/folders/${userFolderId}`;
@@ -118,7 +116,6 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         res.status(200).json({ message: 'Tải lên thành công!', status: 'success' });
     } catch (error) {
         console.error("Lỗi API Upload:", error.message);
-        // Trả lỗi cụ thể về cho người dùng thay vì báo chung chung
         res.status(500).json({ message: error.message || 'Có lỗi xảy ra trong quá trình upload.' });
     }
 });
@@ -126,7 +123,6 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-    // Đảm bảo thư mục uploads tồn tại
     if (!fs.existsSync('uploads')) {
         fs.mkdirSync('uploads');
     }

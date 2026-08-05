@@ -18,25 +18,24 @@ let selectedFiles = [];
 
 // 1. Khởi tạo mặc định khi tải trang
 document.addEventListener('DOMContentLoaded', () => {
-    // Tải tên đã lưu
     const savedName = localStorage.getItem('userName');
     if (savedName) fullNameInput.value = savedName;
 
-    // Gán Giờ giao hàng mặc định
+    // SỬA Ở ĐÂY: Dùng .placeholder thay vì .value để tạo text ẩn
     const today = new Date();
     const dateStr = `${today.getDate()}/${today.getMonth() + 1}`;
-    deliveryTimeInput.value = `18H chiều nay (${dateStr})`;
+    deliveryTimeInput.placeholder = `18H chiều nay (${dateStr})`;
 });
 
 fullNameInput.addEventListener('input', (e) => {
     localStorage.setItem('userName', e.target.value);
 });
 
-// 2. Logic Lấy Toạ Độ (Đã sửa lỗi Spam)
+// 2. Logic Lấy Toạ Độ
 getLocationBtn.addEventListener('click', () => {
     if (navigator.geolocation) {
         getLocationBtn.textContent = "Đang lấy...";
-        getLocationBtn.disabled = true; // Khoá nút chống spam
+        getLocationBtn.disabled = true; 
         getLocationBtn.classList.add('opacity-70', 'cursor-not-allowed');
 
         navigator.geolocation.getCurrentPosition(
@@ -59,7 +58,6 @@ getLocationBtn.addEventListener('click', () => {
                 getLocationBtn.disabled = false;
                 locationError.classList.remove('hidden');
             },
-            // Tắt High Accuracy và thêm Timeout để chạy mượt hơn
             { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
         );
     } else {
@@ -135,7 +133,12 @@ async function countDocxPages(file) {
 uploadBtn.addEventListener('click', async () => {
     const name = fullNameInput.value.trim();
     const coords = coordinatesInput.value.trim();
-    const delivery = deliveryTimeInput.value.trim();
+    
+    // SỬA Ở ĐÂY: Nếu khách không nhập gì, lấy text từ placeholder
+    let delivery = deliveryTimeInput.value.trim();
+    if (!delivery) {
+        delivery = deliveryTimeInput.placeholder; 
+    }
 
     if (!name) return alert('Vui lòng nhập Họ và Tên!');
     if (!coords) return alert('Vui lòng cung cấp vị trí giao hàng!');
@@ -147,7 +150,7 @@ uploadBtn.addEventListener('click', async () => {
     const formData = new FormData();
     formData.append('fullName', name);
     formData.append('coordinates', coords);
-    formData.append('deliveryTime', delivery); // Gửi giờ giao hàng
+    formData.append('deliveryTime', delivery);
     
     selectedFiles.forEach(obj => {
         formData.append('files', obj.file);
@@ -167,7 +170,6 @@ uploadBtn.addEventListener('click', async () => {
             fileListContainer.classList.add('hidden');
             fileInput.value = '';
             
-            // Khôi phục lại nút GPS
             coordinatesInput.value = '';
             getLocationBtn.textContent = "Lấy vị trí";
             getLocationBtn.classList.replace('bg-gray-600', 'bg-green-600');

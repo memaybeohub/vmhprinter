@@ -18,7 +18,7 @@ const upload = multer({ dest: 'uploads/' });
 const auth = new google.auth.GoogleAuth({
     credentials: {
         client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        private_key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
     },
     scopes: ['https://www.googleapis.com/auth/drive.file'],
 });
@@ -26,6 +26,10 @@ const drive = google.drive({ version: 'v3', auth });
 
 // Hàm tìm hoặc tạo thư mục trên Google Drive
 async function findOrCreateFolder(folderName, parentId) {
+    if (!parentId || parentId.trim() === '') {
+        throw new Error("Lỗi: Không tìm thấy ID thư mục cha! Hãy kiểm tra lại biến DRIVE_PARENT_FOLDER_ID trên Render.");
+    }
+    
     try {
         const query = `mimeType='application/vnd.google-apps.folder' and trashed=false and name='${folderName}' and '${parentId}' in parents`;
         const response = await drive.files.list({ q: query, spaces: 'drive', fields: 'files(id, name)' });
@@ -45,8 +49,8 @@ async function findOrCreateFolder(folderName, parentId) {
         });
         return folder.data.id;
     } catch (error) {
-        console.error('Lỗi khi tạo folder:', error);
-        throw error;
+        console.error(`Lỗi khi tìm/tạo folder ${folderName}:`, error.message);
+        throw error; // Ném lỗi ra ngoài để API bắt được
     }
 }
 
@@ -56,6 +60,14 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         const coordinates = req.body.coordinates || 'Chưa cung cấp toạ độ';
         const files = req.files;
         const rootFolderId = process.env.DRIVE_PARENT_FOLDER_ID;
+
+        // Bẫy lỗi cấu hình biến môi trường
+        if (!rootFolderId || rootFolderId.includes('http')) {
+            throw new Error("Cấu hình DRIVE_PARENT_FOLDER_ID bị sai. Chỉ copy mã ID, không được chứa cả đường link https://...");
+        }
+        if (files.length === 0) {
+            throw new Error("Không có file nào được gửi lên.");
+        }
 
         // 1. Lấy ngày hiện tại
         const today = new Date();
@@ -105,8 +117,9 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
 
         res.status(200).json({ message: 'Tải lên thành công!', status: 'success' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Có lỗi xảy ra trong quá trình upload.', error: error.message });
+        console.error("Lỗi API Upload:", error.message);
+        // Trả lỗi cụ thể về cho người dùng thay vì báo chung chung
+        res.status(500).json({ message: error.message || 'Có lỗi xảy ra trong quá trình upload.' });
     }
 });
 

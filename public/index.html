@@ -22,18 +22,25 @@
         </div>
 
         <!-- Lấy toạ độ giao hàng -->
-        <div class="mb-6">
+        <div class="mb-4">
             <label class="block text-sm font-semibold mb-2">Vị trí giao hàng (Toạ độ)</label>
             <div class="flex gap-2">
-                <input type="text" id="coordinates" readonly placeholder="Bấm nút bên cạnh để lấy vị trí..." 
-                    class="w-full px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 focus:outline-none">
+                <input type="text" id="coordinates" placeholder="Nhập toạ độ hoặc bấm nút bên cạnh..." 
+                    class="w-full px-4 py-2 border rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <button id="getLocationBtn" type="button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition whitespace-nowrap">
                     Lấy vị trí
                 </button>
             </div>
-            <p class="text-xs text-red-500 mt-1 hidden" id="locationError">Không thể lấy vị trí, vui lòng cấp quyền cho trình duyệt!</p>
+            <p class="text-xs text-red-500 mt-1 hidden" id="locationError">Không thể tự động lấy vị trí, vui lòng nhập tay toạ độ!</p>
         </div>
 
+        <!-- Giờ giao hàng (MỚI) -->
+        <div class="mb-6">
+            <label class="block text-sm font-semibold mb-2">Giờ giao hàng</label>
+            <input type="text" id="deliveryTime" 
+                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        
         <!-- Vùng Dropzone -->
         <div id="dropzone" class="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center bg-blue-50 cursor-pointer hover:bg-blue-100 transition">
             <svg class="mx-auto h-12 w-12 text-blue-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>

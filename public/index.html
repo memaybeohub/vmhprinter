@@ -3,104 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload & Tính Tiền In Ấn</title>
+    <title>Dịch Vụ Tiện Ích</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Thư viện đếm trang PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <!-- Thư viện giải nén đếm trang Word (.docx) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans min-h-screen p-6">
-    <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg">
-        <h1 class="text-2xl font-bold mb-6 text-blue-600 border-b pb-4">Tải tài liệu in ấn</h1>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen p-4 md:p-8">
 
-        <!-- Nhập Họ Tên -->
-        <div class="mb-4">
-            <label class="block text-sm font-semibold mb-2">Họ và Tên</label>
-            <input type="text" id="fullName" placeholder="Nhập họ và tên của bạn..." 
-                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-
-        <!-- Lấy toạ độ giao hàng -->
-        <div class="mb-4">
-            <label class="block text-sm font-semibold mb-2">Vị trí giao hàng (Toạ độ)</label>
-            <div class="flex gap-2">
-                <input type="text" id="coordinates" placeholder="Nhập toạ độ hoặc bấm nút bên cạnh..." 
-                    class="w-full px-4 py-2 border rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button id="getLocationBtn" type="button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition whitespace-nowrap">
-                    Lấy vị trí
-                </button>
-            </div>
-            <p class="text-xs text-red-500 mt-1 hidden" id="locationError">Không thể tự động lấy vị trí, vui lòng nhập tay toạ độ!</p>
-        </div>
-
-        <!-- Giờ giao hàng (MỚI) -->
-        <div class="mb-6">
-            <label class="block text-sm font-semibold mb-2">Giờ giao hàng</label>
-            <input type="text" id="deliveryTime" 
-                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
+    <div class="max-w-4xl mx-auto space-y-8">
         
-        <!-- Vùng Dropzone -->
-        <div id="dropzone" class="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center bg-blue-50 cursor-pointer hover:bg-blue-100 transition">
-            <svg class="mx-auto h-12 w-12 text-blue-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-            <p class="text-gray-600 font-medium">Kéo thả các tệp vào đây, hoặc click để chọn</p>
-            <p class="text-sm text-gray-400 mt-1">Hỗ trợ: PDF, DOCX, PNG, JPG</p>
-            <input type="file" id="fileInput" class="hidden" multiple accept=".pdf,.docx,.png,.jpg,.jpeg">
-        </div>
+        <!-- ================= KHUNG 1: DỊCH VỤ IN ẤN ================= -->
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+            <h1 class="text-2xl font-bold mb-6 text-blue-600 border-b pb-4">🖨️ Tải tài liệu in ấn</h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Họ và Tên</label>
+                    <input type="text" id="fullName" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Giờ giao hàng</label>
+                    <input type="text" id="deliveryTime" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
 
-        <!-- Bảng danh sách file -->
-        <div class="mt-8 hidden" id="fileListContainer">
-            <h3 class="font-bold text-lg mb-3">Tài liệu đã chọn:</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+            <div class="mb-6">
+                <label class="block text-sm font-semibold mb-2">Vị trí giao hàng (Toạ độ)</label>
+                <div class="flex gap-2">
+                    <input type="text" id="coordinates" placeholder="Vĩ độ, Kinh độ" class="w-full px-4 py-2 border rounded-lg bg-gray-50 outline-none" readonly>
+                    <button id="getLocationBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap transition">Lấy vị trí</button>
+                </div>
+                <p id="locationError" class="text-red-500 text-sm mt-1 hidden">Không thể lấy vị trí, vui lòng kiểm tra quyền truy cập!</p>
+            </div>
+
+            <div id="dropzone" class="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center bg-blue-50 cursor-pointer hover:bg-blue-100 transition">
+                <p class="text-gray-600 font-medium">Kéo thả tài liệu vào đây (PDF, DOCX, Ảnh)</p>
+                <input type="file" id="fileInput" class="hidden" multiple accept=".pdf,.docx,.png,.jpg,.jpeg">
+            </div>
+
+            <div class="mt-6 hidden" id="fileListContainer">
+                <table class="w-full text-left border-collapse border mb-4">
                     <thead>
-                        <tr class="bg-gray-100 text-sm">
-                            <th class="p-3 border">Tên tệp</th>
-                            <th class="p-3 border w-24 text-center">Số trang</th>
-                        </tr>
+                        <tr class="bg-gray-100 text-sm"><th class="p-2 border">Tên tệp</th><th class="p-2 border text-center">Trang</th></tr>
                     </thead>
                     <tbody id="fileTableBody" class="text-sm"></tbody>
                 </table>
-            </div>
-
-            <!-- Tổng kết & Tính tiền -->
-            <div class="mt-6 bg-blue-50 p-4 rounded-lg flex justify-between items-center border border-blue-100">
-                <div>
-                    <p class="text-gray-600">Tổng số trang: <span id="totalPages" class="font-bold text-lg text-black">0</span></p>
-                    <p class="text-gray-600 text-sm italic">(Chỉ tính PDF và DOCX)</p>
+                <div class="bg-blue-50 p-4 rounded-lg flex justify-between items-center border border-blue-100">
+                    <div><p>Tổng trang: <span id="totalPages" class="font-bold">0</span></p></div>
+                    <div class="text-right text-blue-600 font-bold text-xl" id="totalPrice">0đ</div>
                 </div>
-                <div class="text-right">
-                    <p class="text-gray-600">Thành tiền:</p>
-                    <p class="font-bold text-2xl text-blue-600" id="totalPrice">0đ</p>
+                
+                <button id="uploadBtn" class="mt-4 w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700">Gửi File In</button>
+                
+                <div id="loading" class="hidden mt-4 bg-gray-50 border rounded-lg p-4 text-sm">
+                    <div class="flex justify-between mb-1"><span id="uploadStatus">Đang xử lý...</span><span id="uploadPercentage" class="text-blue-600 font-bold">0%</span></div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 mb-1"><div id="progressBar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div></div>
+                    <div class="flex justify-between text-xs text-gray-500"><span id="uploadSpeed">0 MB/s</span><span id="uploadTime">Đang tính...</span></div>
                 </div>
-            </div>
-
-            <!-- Nút Upload (Giữ nguyên) -->
-        <button id="uploadBtn" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition flex justify-center items-center">
-            <span>Tải lên Google Drive</span>
-        </button>
-        
-        <!-- Loading overlay & Progress Bar (CẬP NHẬT MỚI VÀO ĐÂY) -->
-        <div id="loading" class="hidden mt-6 bg-gray-50 border border-gray-200 rounded-lg p-5 shadow-inner">
-            <div class="flex justify-between text-sm mb-2 text-gray-700 font-semibold">
-                <span id="uploadStatus">Đang tải file lên máy chủ...</span>
-                <span id="uploadPercentage" class="text-blue-600">0%</span>
-            </div>
-            <!-- Khung thanh tiến trình -->
-            <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
-                <div id="progressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
-            </div>
-            <!-- Thông số đo lường -->
-            <div class="flex justify-between text-xs text-gray-500 font-medium">
-                <span id="uploadSpeed">0 MB/s</span>
-                <span id="uploadTime">Còn lại: Đang tính...</span>
             </div>
         </div>
-        
-        <!-- Loading overlay -->
-        <div id="loading" class="hidden mt-4 text-center text-blue-600 font-medium">
-            Đang xử lý, vui lòng đợi...
+
+        <!-- ================= KHUNG 2: Ổ ĐĨA ĐÁM MÂY ================= -->
+        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-t-4 border-purple-500">
+            <h1 class="text-2xl font-bold mb-2 text-purple-600">☁️ Đám Mây Mini</h1>
+            <p class="text-gray-500 text-sm mb-6">Tải lên và chia sẻ không giới hạn định dạng. File sẽ được lưu vào Drive bảo mật.</p>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-semibold mb-2">Email nhận quyền truy cập (Không bắt buộc)</label>
+                <input type="email" id="cloudEmail" placeholder="Nhập email Gmail..." class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none">
+            </div>
+
+            <div id="cloudDropzone" class="border-2 border-dashed border-purple-300 rounded-xl p-8 text-center bg-purple-50 cursor-pointer hover:bg-purple-100 transition">
+                <p class="text-gray-600 font-medium">Click hoặc Kéo thả mọi loại file vào đây</p>
+                <input type="file" id="cloudFileInput" class="hidden" multiple>
+            </div>
+            <p id="cloudSelectedFiles" class="text-sm text-gray-600 mt-2 font-medium"></p>
+
+            <button id="cloudUploadBtn" class="mt-4 w-full bg-purple-600 text-white font-bold py-3 rounded-lg hover:bg-purple-700 hidden">Tải Lên Đám Mây</button>
+
+            <div id="cloudLoading" class="hidden mt-4 bg-gray-50 border rounded-lg p-4 text-sm">
+                <div class="flex justify-between mb-1"><span id="cloudStatus">Đang tải...</span><span id="cloudPercentage" class="text-purple-600 font-bold">0%</span></div>
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-1"><div id="cloudProgressBar" class="bg-purple-600 h-2 rounded-full" style="width: 0%"></div></div>
+                <div class="flex justify-between text-xs text-gray-500"><span id="cloudSpeed">0 MB/s</span><span id="cloudTime">Đang tính...</span></div>
+            </div>
+
+            <!-- Lịch sử tải lên -->
+            <div class="mt-8 border-t pt-6">
+                <h3 class="font-bold text-gray-700 mb-3">🕒 Lịch sử File của bạn (Lưu trên máy này)</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <tbody id="historyTableBody">
+                            <!-- JS Sẽ render lịch sử vào đây -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 

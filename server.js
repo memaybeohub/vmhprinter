@@ -157,7 +157,31 @@ app.post('/api/cloud-upload', upload.array('files'), async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
+// API Hủy công khai file (Chỉ giữ lại quyền của mail được cấp)
+app.post('/api/cloud-private', async (req, res) => {
+    try {
+        const { fileId } = req.body;
+        
+        // 1. Lấy danh sách các quyền (permissions) hiện tại của file trên Drive
+        const permissions = await drive.permissions.list({
+            fileId: fileId,
+            fields: 'permissions(id, type, role)'
+        });
 
+        // 2. Tìm và xóa quyền có kiểu là 'anyone' (công khai)
+        const publicPermission = permissions.data.permissions.find(p => p.type === 'anyone');
+        if (publicPermission) {
+            await drive.permissions.delete({
+                fileId: fileId,
+                permissionId: publicPermission.id
+            });
+        }
+
+        res.status(200).json({ status: 'success' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 // API Bật công khai file
 app.post('/api/cloud-public', async (req, res) => {
     try {

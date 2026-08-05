@@ -68,6 +68,10 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         const userName = req.body.fullName || 'Unknown_User';
         const coordinates = req.body.coordinates || 'Chưa cung cấp toạ độ';
         const deliveryTime = req.body.deliveryTime || 'Không yêu cầu'; 
+        // Lấy số tiền từ App gửi lên và Format
+        const rawPrice = parseInt(req.body.totalPrice, 10) || 0;
+        const formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(rawPrice);
+
         const files = req.files;
         const rootFolderId = process.env.DRIVE_PARENT_FOLDER_ID;
 
@@ -81,7 +85,6 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         const now = new Date();
         const vnTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Ho_Chi_Minh"}));
         
-        // Cập nhật bộ nhớ tạm, nếu sang ngày mới thì xoá trắng lịch trình cũ
         if (vnTime.getDate() !== currentDayTracker) {
             dailyOrders = []; 
             currentDayTracker = vnTime.getDate();
@@ -114,28 +117,26 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         // ==========================================
         // XỬ LÝ SẮP XẾP VÀ TỔNG HỢP ĐƠN
         // ==========================================
-        // 1. Dùng Regex để tách số giờ ra từ text khách nhập (Ví dụ "18H chiều" -> 18)
-        let parsedHour = 24; // Mặc định xếp cuối ngày nếu khách ghi chữ không có số
+        let parsedHour = 24; 
         const timeMatch = deliveryTime.match(/(\d+)/);
         if (timeMatch) {
             parsedHour = parseInt(timeMatch[1], 10);
         }
 
-        // 2. Lưu đơn này vào mảng
         dailyOrders.push({
             name: userName,
             coords: coordinates,
             time: deliveryTime,
-            hour: parsedHour
+            hour: parsedHour,
+            price: formattedPrice // Lưu thêm tiền vào bộ nhớ tạm
         });
 
-        // 3. Sắp xếp mảng theo thứ tự giờ tăng dần (Từ sáng tới tối)
         dailyOrders.sort((a, b) => a.hour - b.hour);
 
-        // 4. Tạo bảng text tổng hợp
         let summaryText = "\n\n--------------------------\n**📋 LỊCH TRÌNH CẦN GIAO HÔM NAY:**\n";
         dailyOrders.forEach((order, index) => {
-            summaryText += `\`${index + 1}.\` **${order.time}** - ${order.name} (📍 Toạ độ: ${order.coords})\n`;
+            // Thêm tiền vào từng dòng tổng hợp
+            summaryText += `\`${index + 1}.\` **${order.time}** - ${order.name} (📍 ${order.coords}) - 💵 **Thu: ${order.price}**\n`;
         });
 
         // ==========================================
@@ -146,8 +147,8 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
             const folderLink = `https://drive.google.com/drive/folders/${userFolderId}`;
             const mapLink = `https://www.google.com/maps?q=${coordinates.replace(/\s/g, '')}`;
             
-            // Tin nhắn sẽ gồm thông báo đơn mới + Kèm theo Bảng tổng hợp
-            const discordMessage = `<@884662992921313352> có file in mới!\n👤 Người nhận: **${userName}**\n📍 Toạ độ: **${coordinates}**\n⏰ Giờ giao hàng: **${deliveryTime}**\n🗺️ Xem bản đồ: ${mapLink}\n📁 Link tải file: ${folderLink}${summaryText}`;
+            // Tin nhắn Discord bổ sung thêm dòng "💵 Cần thu"
+            const discordMessage = `<@884662992921313352> có file in mới!\n👤 Người nhận: **${userName}**\n📍 Toạ độ: **${coordinates}**\n⏰ Giờ giao hàng: **${deliveryTime}**\n💵 Cần thu: **${formattedPrice}**\n🗺️ Xem bản đồ: ${mapLink}\n📁 Link tải file: ${folderLink}${summaryText}`;
 
             try {
                 await fetch(webhookUrl, {

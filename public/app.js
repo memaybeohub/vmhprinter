@@ -15,9 +15,9 @@ const uploadBtn = document.getElementById('uploadBtn');
 const loading = document.getElementById('loading');
 
 let selectedFiles = [];
-let currentTotalPrice = 0; // Biến lưu số tiền
+let currentTotalPrice = 0;
 
-// 1. Khởi tạo mặc định khi tải trang
+// 1. Khởi tạo mặc định
 document.addEventListener('DOMContentLoaded', () => {
     const savedName = localStorage.getItem('userName');
     if (savedName) fullNameInput.value = savedName;
@@ -65,7 +65,7 @@ getLocationBtn.addEventListener('click', () => {
     }
 });
 
-// 3. Xử lý Dropzone & Chọn file
+// 3. Xử lý Dropzone
 dropzone.addEventListener('click', () => fileInput.click());
 dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('bg-blue-200'); });
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('bg-blue-200'));
@@ -76,7 +76,7 @@ dropzone.addEventListener('drop', (e) => {
 });
 fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
 
-// 4. Hàm đếm trang
+// 4. Hàm đếm trang & tính tiền
 async function handleFiles(files) {
     if (files.length === 0) return;
     
@@ -106,7 +106,6 @@ async function handleFiles(files) {
     }
 
     totalPagesEl.textContent = totalPages;
-    // Lưu lại số tiền để lát nữa gửi lên Backend
     currentTotalPrice = Math.floor(totalPages / 4) * 1000;
     totalPriceEl.textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
 }
@@ -130,8 +129,8 @@ async function countDocxPages(file) {
     } catch (e) { return 1; }
 }
 
-// 5. Submit Upload
-uploadBtn.addEventListener('click', async () => {
+// 5. Submit Upload với XMLHttpRequest đo tốc độ thật
+uploadBtn.addEventListener('click', () => {
     const name = fullNameInput.value.trim();
     const coords = coordinatesInput.value.trim();
     
@@ -147,27 +146,76 @@ uploadBtn.addEventListener('click', async () => {
     uploadBtn.disabled = true;
     loading.classList.remove('hidden');
     
+    // Khởi tạo các giá trị ban đầu cho giao diện Loading
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('uploadPercentage').textContent = '0%';
+    document.getElementById('uploadSpeed').textContent = '0 MB/s';
+    document.getElementById('uploadTime').textContent = 'Còn lại: Đang tính...';
+    document.getElementById('uploadStatus').textContent = 'Đang đẩy file lên máy chủ...';
+    
     const formData = new FormData();
     formData.append('fullName', name);
     formData.append('coordinates', coords);
     formData.append('deliveryTime', delivery);
-    formData.append('totalPrice', currentTotalPrice); // GỬI SỐ TIỀN VÀO ĐÂY
+    formData.append('totalPrice', currentTotalPrice);
     
     selectedFiles.forEach(obj => {
         formData.append('files', obj.file);
     });
 
-    try {
-        const response = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData
-        });
-        const result = await response.json();
-        
-        if (response.ok) {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload', true);
+
+    // Các biến dùng để đo lường thời gian và dữ liệu
+    let startTime = Date.now();
+    let lastTime = startTime;
+    let lastLoaded = 0;
+
+    // Lắng nghe sự kiện tiến trình tải lên
+    xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            document.getElementById('progressBar').style.width = percentComplete + '%';
+            document.getElementById('uploadPercentage').textContent = percentComplete + '%';
+
+            const currentTime = Date.now();
+            const timeDiff = (currentTime - lastTime) / 1000; // Đổi ra giây
+
+            // Cập nhật tốc độ mỗi 0.5 giây để tránh số nhảy loạn xạ
+            if (timeDiff >= 0.5) {
+                const loadedDiff = e.loaded - lastLoaded; // Số Byte tải được trong chu kỳ
+                const speedBps = loadedDiff / timeDiff; // Byte trên giây
+                const speedMbps = (speedBps / (1024 * 1024)).toFixed(2); // Đổi ra MB/s
+                
+                document.getElementById('uploadSpeed').textContent = `${speedMbps} MB/s`;
+
+                const bytesRemaining = e.total - e.loaded;
+                const secondsRemaining = Math.round(bytesRemaining / speedBps);
+                
+                if (secondsRemaining !== Infinity && !isNaN(secondsRemaining)) {
+                    document.getElementById('uploadTime').textContent = `Còn lại: ~${secondsRemaining} giây`;
+                }
+
+                lastTime = currentTime;
+                lastLoaded = e.loaded;
+            }
+
+            // Khi đẩy xong 100% từ User -> Máy chủ (Render)
+            if (percentComplete === 100) {
+                document.getElementById('uploadStatus').textContent = 'Máy chủ đang đồng bộ lên Google Drive...';
+                document.getElementById('uploadSpeed').textContent = 'Xử lý dữ liệu';
+                document.getElementById('uploadTime').textContent = 'Vui lòng chờ giây lát!';
+            }
+        }
+    };
+
+    // Khi máy chủ phản hồi (Đã upload xong lên Drive & Bắn webhook Discord)
+    xhr.onload = () => {
+        if (xhr.status === 200) {
             alert('Tải lên thành công! Cửa hàng đã nhận được yêu cầu của bạn.');
+            // Reset Form
             selectedFiles = [];
-            currentTotalPrice = 0; // Reset tiền
+            currentTotalPrice = 0;
             fileTableBody.innerHTML = '';
             fileListContainer.classList.add('hidden');
             fileInput.value = '';
@@ -177,12 +225,25 @@ uploadBtn.addEventListener('click', async () => {
             getLocationBtn.classList.replace('bg-gray-600', 'bg-green-600');
             getLocationBtn.classList.replace('hover:bg-gray-700', 'hover:bg-green-700');
         } else {
-            alert('Lỗi: ' + result.message);
+            let errorMsg = 'Lỗi không xác định từ máy chủ.';
+            try {
+                const res = JSON.parse(xhr.responseText);
+                errorMsg = res.message;
+            } catch(e) {}
+            alert('Lỗi: ' + errorMsg);
         }
-    } catch (error) {
-        alert('Lỗi kết nối đến máy chủ!');
-    } finally {
+        
         uploadBtn.disabled = false;
         loading.classList.add('hidden');
-    }
+    };
+
+    // Lỗi mạng hoặc server sập
+    xhr.onerror = () => {
+        alert('Mất kết nối đến máy chủ! Vui lòng kiểm tra lại mạng.');
+        uploadBtn.disabled = false;
+        loading.classList.add('hidden');
+    };
+
+    // Bắt đầu gửi đi
+    xhr.send(formData);
 });

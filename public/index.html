@@ -15,10 +15,23 @@
         <h1 class="text-2xl font-bold mb-6 text-blue-600 border-b pb-4">Tải tài liệu in ấn</h1>
 
         <!-- Nhập Họ Tên -->
-        <div class="mb-6">
+        <div class="mb-4">
             <label class="block text-sm font-semibold mb-2">Họ và Tên</label>
             <input type="text" id="fullName" placeholder="Nhập họ và tên của bạn..." 
                 class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Lấy toạ độ giao hàng -->
+        <div class="mb-6">
+            <label class="block text-sm font-semibold mb-2">Vị trí giao hàng (Toạ độ)</label>
+            <div class="flex gap-2">
+                <input type="text" id="coordinates" readonly placeholder="Bấm nút bên cạnh để lấy vị trí..." 
+                    class="w-full px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 focus:outline-none">
+                <button id="getLocationBtn" type="button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition whitespace-nowrap">
+                    Lấy vị trí
+                </button>
+            </div>
+            <p class="text-xs text-red-500 mt-1 hidden" id="locationError">Không thể lấy vị trí, vui lòng cấp quyền cho trình duyệt!</p>
         </div>
 
         <!-- Vùng Dropzone -->

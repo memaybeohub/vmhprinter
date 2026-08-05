@@ -1,1 +1,73 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload & Tính Tiền In Ấn</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Thư viện đếm trang PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <!-- Thư viện giải nén đếm trang Word (.docx) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen p-6">
+    <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+        <h1 class="text-2xl font-bold mb-6 text-blue-600 border-b pb-4">Tải tài liệu in ấn</h1>
 
+        <!-- Nhập Họ Tên -->
+        <div class="mb-6">
+            <label class="block text-sm font-semibold mb-2">Họ và Tên</label>
+            <input type="text" id="fullName" placeholder="Nhập họ và tên của bạn..." 
+                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Vùng Dropzone -->
+        <div id="dropzone" class="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center bg-blue-50 cursor-pointer hover:bg-blue-100 transition">
+            <svg class="mx-auto h-12 w-12 text-blue-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <p class="text-gray-600 font-medium">Kéo thả các tệp vào đây, hoặc click để chọn</p>
+            <p class="text-sm text-gray-400 mt-1">Hỗ trợ: PDF, DOCX, PNG, JPG</p>
+            <input type="file" id="fileInput" class="hidden" multiple accept=".pdf,.docx,.png,.jpg,.jpeg">
+        </div>
+
+        <!-- Bảng danh sách file -->
+        <div class="mt-8 hidden" id="fileListContainer">
+            <h3 class="font-bold text-lg mb-3">Tài liệu đã chọn:</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-sm">
+                            <th class="p-3 border">Tên tệp</th>
+                            <th class="p-3 border w-24 text-center">Số trang</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fileTableBody" class="text-sm"></tbody>
+                </table>
+            </div>
+
+            <!-- Tổng kết & Tính tiền -->
+            <div class="mt-6 bg-blue-50 p-4 rounded-lg flex justify-between items-center border border-blue-100">
+                <div>
+                    <p class="text-gray-600">Tổng số trang: <span id="totalPages" class="font-bold text-lg text-black">0</span></p>
+                    <p class="text-gray-600 text-sm italic">(Chỉ tính PDF và DOCX)</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-gray-600">Thành tiền:</p>
+                    <p class="font-bold text-2xl text-blue-600" id="totalPrice">0đ</p>
+                </div>
+            </div>
+
+            <!-- Nút Upload -->
+            <button id="uploadBtn" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition flex justify-center items-center">
+                <span>Tải lên Google Drive</span>
+            </button>
+        </div>
+        
+        <!-- Loading overlay -->
+        <div id="loading" class="hidden mt-4 text-center text-blue-600 font-medium">
+            Đang xử lý, vui lòng đợi...
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

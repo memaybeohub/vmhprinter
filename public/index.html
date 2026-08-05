@@ -76,10 +76,26 @@
                 </div>
             </div>
 
-            <!-- Nút Upload -->
-            <button id="uploadBtn" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition flex justify-center items-center">
-                <span>Tải lên Google Drive</span>
-            </button>
+            <!-- Nút Upload (Giữ nguyên) -->
+        <button id="uploadBtn" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition flex justify-center items-center">
+            <span>Tải lên Google Drive</span>
+        </button>
+        
+        <!-- Loading overlay & Progress Bar (CẬP NHẬT MỚI VÀO ĐÂY) -->
+        <div id="loading" class="hidden mt-6 bg-gray-50 border border-gray-200 rounded-lg p-5 shadow-inner">
+            <div class="flex justify-between text-sm mb-2 text-gray-700 font-semibold">
+                <span id="uploadStatus">Đang tải file lên máy chủ...</span>
+                <span id="uploadPercentage" class="text-blue-600">0%</span>
+            </div>
+            <!-- Khung thanh tiến trình -->
+            <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
+                <div id="progressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <!-- Thông số đo lường -->
+            <div class="flex justify-between text-xs text-gray-500 font-medium">
+                <span id="uploadSpeed">0 MB/s</span>
+                <span id="uploadTime">Còn lại: Đang tính...</span>
+            </div>
         </div>
         
         <!-- Loading overlay -->

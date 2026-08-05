@@ -190,6 +190,7 @@ function saveToHistory(newFiles) {
     renderCloudHistory();
 }
 
+// Sửa lại hàm render lịch sử để thêm nút "Hủy C.Khai"
 function renderCloudHistory() {
     const history = JSON.parse(localStorage.getItem('cloudHistory') || '[]');
     const tbody = document.getElementById('historyTableBody');
@@ -211,10 +212,31 @@ function renderCloudHistory() {
             <td class="py-3 text-right space-x-1 whitespace-nowrap">
                 <button onclick="copyLink('${file.link}')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs">Copy Link</button>
                 <button onclick="makePublic('${file.id}', this)" class="px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded text-xs">Bật C.Khai</button>
+                <button onclick="makePrivate('${file.id}', this)" class="px-2 py-1 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded text-xs">Hủy C.Khai</button>
                 <button onclick="deleteFile('${file.id}', ${index})" class="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs">Xóa</button>
             </td>
         `;
         tbody.appendChild(tr);
+    });
+}
+
+// Thêm hàm xử lý Hủy công khai
+function makePrivate(fileId, btn) {
+    btn.textContent = 'Đang hủy...';
+    btn.disabled = true;
+    fetch('/api/cloud-private', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId })
+    }).then(res => {
+        if(res.ok) { 
+            btn.textContent = 'Đã riêng tư'; 
+            btn.classList.replace('bg-yellow-100', 'bg-gray-100');
+            btn.classList.replace('text-yellow-700', 'text-gray-600');
+        } else { 
+            btn.textContent = 'Lỗi'; 
+            btn.disabled = false; 
+        }
     });
 }
 

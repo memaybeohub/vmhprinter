@@ -68,13 +68,85 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         const dateFolderId = await findOrCreateFolder(dateString, rootFolderId);
         const userFolderId = await findOrCreateFolder(folderName, dateFolderId);
 
-        const uploadPromises = files.map(async (file) => {
+        // ==========================================
+        // TẠO FILE HÓA ĐƠN (BILL) HTML CÓ THỂ IN ĐƯỢC
+        // ==========================================
+        let rowsHtml = '';
+        let totalPagesAll = 0;
+        fileDetails.forEach((f, index) => {
+            const totalFilePages = (f.pages === '...' ? 1 : f.pages) * f.quantity;
+            totalPagesAll += totalFilePages;
+            rowsHtml += `
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${index + 1}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${f.name}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${f.pages}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;"><strong>x${f.quantity}</strong></td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${totalFilePages}</td>
+                </tr>
+            `;
+        });
+
+        const billHtml = `
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head>
+            <meta charset="UTF-8">
+            <title>Hóa Đơn - ${userName}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 800px; margin: 0 auto; }
+                h2 { text-align: center; color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+                .info p { margin: 5px 0; font-size: 1.1em; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th { background-color: #f3f4f6; padding: 12px; text-align: center; border: 1px solid #ddd; }
+                .total { margin-top: 20px; text-align: right; font-size: 1.2em; }
+                .price { color: #e11d48; font-size: 1.5em; font-weight: bold; }
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <button class="no-print" onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: #fff; border: none; border-radius: 5px; cursor: pointer; float: right;">🖨️ In Hóa Đơn Này</button>
+            <h2>HÓA ĐƠN IN ẤN</h2>
+            <div class="info">
+                <p><strong>Khách hàng:</strong> ${userName}</p>
+                <p><strong>Thời gian đặt:</strong> ${timeString} ngày ${dateString}</p>
+                <p><strong>Giờ giao hàng:</strong> ${deliveryTime}</p>
+                <p><strong>Toạ độ giao:</strong> ${coordinates}</p>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>STT</th><th>Tên File</th><th>Số trang/bản</th><th>Số lượng</th><th>Tổng trang</th></tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+            <div class="total">
+                <p>Tổng số trang: <strong>${totalPagesAll}</strong></p>
+                <p>Thành tiền: <span class="price">${formattedPrice}</span></p>
+            </div>
+        </body>
+        </html>
+        `;
+
+        // Lưu file Hóa đơn tạm thời
+        const billFileName = `[HOA_DON]_Khach_${userName.replace(/\s/g, '_')}.html`;
+        const billFilePath = path.join(__dirname, 'uploads', billFileName);
+        fs.writeFileSync(billFilePath, billHtml);
+
+        // Đưa file Hóa đơn vào mảng để up chung với các file tài liệu
+        const allFilesToUpload = [...files, {
+            originalname: billFileName,
+            mimetype: 'text/html',
+            path: billFilePath
+        }];
+
+        // Vòng lặp upload toàn bộ file
+        const uploadPromises = allFilesToUpload.map(async (file) => {
             const uploadedFile = await drive.files.create({
                 resource: { name: file.originalname, parents: [userFolderId] },
                 media: { mimeType: file.mimetype, body: fs.createReadStream(file.path) },
                 fields: 'id'
             });
-            fs.unlinkSync(file.path);
+            fs.unlinkSync(file.path); 
             return uploadedFile.data.id;
         });
 

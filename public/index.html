@@ -259,17 +259,24 @@
             if (!fullNameInput.value.trim() || !coordinatesInput.value.trim() || selectedPrintFiles.length === 0) return alert('Vui lòng điền đủ thông tin, vị trí và chọn file!');
             
             const formData = new FormData();
-            formData.append('fullName', fullNameInput.value.trim());
-            formData.append('coordinates', coordinatesInput.value.trim());
-            formData.append('deliveryTime', deliveryTimeInput.value.trim() || deliveryTimeInput.placeholder);
-            formData.append('totalPrice', currentTotalPrice);
-            
-            selectedPrintFiles.forEach(obj => {
-                // Đổi tên file để đính kèm số lượng bản in cho chủ shop dễ nhìn trên Drive
-                const newFileName = obj.quantity > 1 ? `[x${obj.quantity} Bản] ${obj.file.name}` : obj.file.name;
-                const newFile = new File([obj.file], newFileName, { type: obj.file.type });
-                formData.append('files', newFile);
-            });
+    formData.append('fullName', name);
+    formData.append('coordinates', coords);
+    formData.append('deliveryTime', delivery);
+    formData.append('totalPrice', currentTotalPrice);
+    
+    // THÊM: Gửi chi tiết từng file (tên, trang, số lượng) lên Server để làm Hóa Đơn
+    const fileDetails = selectedPrintFiles.map(obj => ({
+        name: obj.file.name,
+        pages: obj.pages,
+        quantity: obj.quantity
+    }));
+    formData.append('fileDetails', JSON.stringify(fileDetails));
+
+    selectedPrintFiles.forEach(obj => {
+        const newFileName = obj.quantity > 1 ? `[x${obj.quantity} Bản] ${obj.file.name}` : obj.file.name;
+        const newFile = new File([obj.file], newFileName, { type: obj.file.type });
+        formData.append('files', newFile);
+    });
 
             uploadWithProgress(formData, '/api/upload', 'loading', 'progressBar', 'uploadPercentage', 'uploadSpeed', 'uploadTime', 'uploadStatus', () => {
                 alert('Gửi in thành công!');

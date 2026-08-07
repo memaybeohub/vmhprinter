@@ -10,6 +10,11 @@
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans min-h-screen p-4 md:p-8">
 
+    <!-- Toast Thông báo góc phải màn hình -->
+    <div id="toast" class="fixed top-4 right-4 shadow-lg rounded-lg px-6 py-4 border-l-4 hidden z-50 transition-all font-semibold">
+        <p id="toastMsg"></p>
+    </div>
+
     <div class="max-w-4xl mx-auto space-y-8">
         
         <!-- ================= KHUNG 1: DỊCH VỤ IN ẤN ================= -->
@@ -27,6 +32,7 @@
                 </div>
             </div>
 
+            <!-- Lấy toạ độ -->
             <div class="mb-6">
                 <label class="block text-sm font-semibold mb-2">Vị trí giao hàng (Toạ độ)</label>
                 <div class="flex gap-2">
@@ -36,12 +42,13 @@
                 <p id="locationError" class="text-red-500 text-sm mt-1 hidden">Không thể lấy vị trí, vui lòng kiểm tra quyền truy cập!</p>
             </div>
 
+            <!-- Vùng kéo thả file -->
             <div id="dropzone" class="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center bg-blue-50 cursor-pointer hover:bg-blue-100 transition">
                 <p class="text-gray-600 font-medium">Kéo thả tài liệu vào đây (PDF, DOCX, Ảnh)</p>
                 <input type="file" id="fileInput" class="hidden" multiple accept=".pdf,.docx,.png,.jpg,.jpeg">
             </div>
 
-            <!-- DANH SÁCH FILE IN ẤN MỚI -->
+            <!-- DANH SÁCH FILE IN ẤN -->
             <div class="mt-6 hidden" id="fileListContainer">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="font-bold text-gray-700">Tài liệu đã chọn:</h3>
@@ -65,6 +72,7 @@
                     </table>
                 </div>
 
+                <!-- Bảng tổng tính tiền -->
                 <div class="bg-blue-50 p-4 rounded-lg flex justify-between items-center border border-blue-100">
                     <div><p class="text-gray-600">Tổng trang: <span id="totalPages" class="font-bold text-black text-lg">0</span></p></div>
                     <div class="text-right text-blue-600 font-bold text-2xl" id="totalPrice">0đ</div>
@@ -72,6 +80,7 @@
                 
                 <button id="uploadBtn" class="mt-6 w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition">Gửi File In</button>
                 
+                <!-- Thanh tiến trình Upload In -->
                 <div id="loading" class="hidden mt-4 bg-gray-50 border rounded-lg p-4 text-sm">
                     <div class="flex justify-between mb-1"><span id="uploadStatus">Đang xử lý...</span><span id="uploadPercentage" class="text-blue-600 font-bold">0%</span></div>
                     <div class="w-full bg-gray-200 rounded-full h-2 mb-1"><div id="progressBar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div></div>
@@ -98,13 +107,14 @@
 
             <button id="cloudUploadBtn" class="mt-4 w-full bg-purple-600 text-white font-bold py-3 rounded-lg hover:bg-purple-700 hidden transition">Tải Lên Đám Mây</button>
 
+            <!-- Thanh tiến trình Upload Cloud -->
             <div id="cloudLoading" class="hidden mt-4 bg-gray-50 border rounded-lg p-4 text-sm">
                 <div class="flex justify-between mb-1"><span id="cloudStatus">Đang tải...</span><span id="cloudPercentage" class="text-purple-600 font-bold">0%</span></div>
                 <div class="w-full bg-gray-200 rounded-full h-2 mb-1"><div id="cloudProgressBar" class="bg-purple-600 h-2 rounded-full" style="width: 0%"></div></div>
                 <div class="flex justify-between text-xs text-gray-500"><span id="cloudSpeed">0 MB/s</span><span id="cloudTime">Đang tính...</span></div>
             </div>
 
-            <!-- Lịch sử tải lên -->
+            <!-- Lịch sử tải lên Đám mây -->
             <div class="mt-8 border-t pt-6">
                 <h3 class="font-bold text-gray-700 mb-3">🕒 Lịch sử File của bạn (Lưu trên máy này)</h3>
                 <div class="overflow-x-auto">
@@ -118,9 +128,25 @@
         </div>
     </div>
 
-    <!-- TOÀN BỘ JAVASCRIPT GỘP VÀO ĐÂY -->
+    <!-- TOÀN BỘ JAVASCRIPT ĐƯỢC GỘP VÀO ĐÂY -->
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        // Hàm hiển thị thông báo góc màn hình (Toast)
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            toastMsg.textContent = msg;
+            
+            if (type === 'error') {
+                toast.className = 'fixed top-4 right-4 shadow-lg rounded-lg px-6 py-4 border-l-4 z-50 transition-all font-semibold bg-red-50 border-red-500 text-red-700';
+            } else {
+                toast.className = 'fixed top-4 right-4 shadow-lg rounded-lg px-6 py-4 border-l-4 z-50 transition-all font-semibold bg-green-50 border-green-500 text-green-700';
+            }
+            
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3500);
+        }
 
         // ==========================================
         // A. LOGIC MÁY IN
@@ -136,14 +162,16 @@
             
             const today = new Date();
             deliveryTimeInput.placeholder = `18H chiều nay (${today.getDate()}/${today.getMonth() + 1})`;
-            
             renderCloudHistory();
         });
 
         fullNameInput.addEventListener('input', (e) => localStorage.setItem('userName', e.target.value));
 
         getLocationBtn.addEventListener('click', () => {
-            if (!navigator.geolocation) return alert("Trình duyệt không hỗ trợ vị trí.");
+            if (!navigator.geolocation) {
+                showToast("Trình duyệt không hỗ trợ lấy vị trí.", "error");
+                return;
+            }
             getLocationBtn.textContent = "...";
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
@@ -183,6 +211,7 @@
             document.getElementById('fileListContainer').classList.remove('hidden');
 
             for (const file of files) {
+                // Chống trùng lặp
                 if (selectedPrintFiles.some(f => f.file.name === file.name && f.file.size === file.size)) continue;
 
                 let fileObj = { file: file, pages: '...', quantity: 1 };
@@ -235,7 +264,10 @@
                     </td>
                 `;
                 tbody.appendChild(tr);
-                if (typeof item.pages === 'number') totalPages += (item.pages * item.quantity);
+
+                if (typeof item.pages === 'number') {
+                    totalPages += (item.pages * item.quantity);
+                }
             });
 
             document.getElementById('totalPages').textContent = totalPages;
@@ -256,30 +288,34 @@
         };
 
         document.getElementById('uploadBtn').addEventListener('click', () => {
-            if (!fullNameInput.value.trim() || !coordinatesInput.value.trim() || selectedPrintFiles.length === 0) return alert('Vui lòng điền đủ thông tin, vị trí và chọn file!');
+            if (!fullNameInput.value.trim() || !coordinatesInput.value.trim() || selectedPrintFiles.length === 0) {
+                showToast('Vui lòng điền đủ thông tin, vị trí và chọn file!', 'error');
+                return;
+            }
             
             const formData = new FormData();
-    formData.append('fullName', name);
-    formData.append('coordinates', coords);
-    formData.append('deliveryTime', delivery);
-    formData.append('totalPrice', currentTotalPrice);
-    
-    // THÊM: Gửi chi tiết từng file (tên, trang, số lượng) lên Server để làm Hóa Đơn
-    const fileDetails = selectedPrintFiles.map(obj => ({
-        name: obj.file.name,
-        pages: obj.pages,
-        quantity: obj.quantity
-    }));
-    formData.append('fileDetails', JSON.stringify(fileDetails));
+            formData.append('fullName', fullNameInput.value.trim());
+            formData.append('coordinates', coordinatesInput.value.trim());
+            formData.append('deliveryTime', deliveryTimeInput.value.trim() || deliveryTimeInput.placeholder);
+            formData.append('totalPrice', currentTotalPrice);
+            
+            // Gửi mảng chi tiết Hóa đơn lên Backend
+            const fileDetails = selectedPrintFiles.map(obj => ({
+                name: obj.file.name,
+                pages: obj.pages,
+                quantity: obj.quantity
+            }));
+            formData.append('fileDetails', JSON.stringify(fileDetails));
 
-    selectedPrintFiles.forEach(obj => {
-        const newFileName = obj.quantity > 1 ? `[x${obj.quantity} Bản] ${obj.file.name}` : obj.file.name;
-        const newFile = new File([obj.file], newFileName, { type: obj.file.type });
-        formData.append('files', newFile);
-    });
+            // Đổi tên file theo số lượng
+            selectedPrintFiles.forEach(obj => {
+                const newFileName = obj.quantity > 1 ? `[x${obj.quantity} Bản] ${obj.file.name}` : obj.file.name;
+                const newFile = new File([obj.file], newFileName, { type: obj.file.type });
+                formData.append('files', newFile);
+            });
 
             uploadWithProgress(formData, '/api/upload', 'loading', 'progressBar', 'uploadPercentage', 'uploadSpeed', 'uploadTime', 'uploadStatus', () => {
-                alert('Gửi in thành công!');
+                showToast('Gửi in thành công!');
                 selectedPrintFiles = [];
                 renderPrintFileList();
                 fileInput.value = '';
@@ -316,7 +352,7 @@
             selectedCloudFiles.forEach(f => formData.append('files', f));
 
             uploadWithProgress(formData, '/api/cloud-upload', 'cloudLoading', 'cloudProgressBar', 'cloudPercentage', 'cloudSpeed', 'cloudTime', 'cloudStatus', (res) => {
-                alert('Đã lưu lên Đám Mây!');
+                showToast('Đã lưu lên Đám Mây!');
                 saveToHistory(res.files);
                 cloudSelectedFilesText.textContent = '';
                 cloudUploadBtn.classList.add('hidden');
@@ -363,7 +399,7 @@
                 if (xhr.status === 200) {
                     onSuccess(JSON.parse(xhr.responseText));
                 } else {
-                    alert('Có lỗi xảy ra: ' + xhr.responseText);
+                    showToast('Có lỗi xảy ra: ' + xhr.responseText, 'error');
                 }
             };
             xhr.send(formData);
@@ -398,7 +434,7 @@
                         <button onclick="copyLink('${file.link}')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs">Copy Link</button>
                         <button onclick="makePublic('${file.id}', this)" class="px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded text-xs">Bật C.Khai</button>
                         <button onclick="makePrivate('${file.id}', this)" class="px-2 py-1 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded text-xs">Hủy C.Khai</button>
-                        <button onclick="deleteFile('${file.id}', ${index})" class="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs">Xóa</button>
+                        <button onclick="deleteFile('${file.id}', ${index}, this)" class="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs transition-colors duration-300">Xóa</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -406,7 +442,7 @@
         }
 
         window.copyLink = function(link) {
-            navigator.clipboard.writeText(link).then(() => alert('Đã copy link!'));
+            navigator.clipboard.writeText(link).then(() => showToast('Đã copy link!'));
         }
 
         window.makePublic = function(fileId, btn) {
@@ -417,8 +453,15 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ fileId })
             }).then(res => {
-                if(res.ok) { btn.textContent = 'Đã mở C.Khai'; btn.classList.replace('bg-green-100', 'bg-gray-100'); }
-                else { btn.textContent = 'Lỗi'; btn.disabled = false; }
+                if(res.ok) { 
+                    btn.textContent = 'Đã mở C.Khai'; 
+                    btn.classList.replace('bg-green-100', 'bg-gray-100'); 
+                    showToast('Đã bật công khai!');
+                } else { 
+                    btn.textContent = 'Lỗi'; 
+                    btn.disabled = false; 
+                    showToast('Lỗi bật công khai', 'error');
+                }
             });
         }
 
@@ -434,13 +477,36 @@
                     btn.textContent = 'Đã riêng tư'; 
                     btn.classList.replace('bg-yellow-100', 'bg-gray-100');
                     btn.classList.replace('text-yellow-700', 'text-gray-600');
-                } else { btn.textContent = 'Lỗi'; btn.disabled = false; }
+                    showToast('Đã hủy quyền công khai!');
+                } else { 
+                    btn.textContent = 'Lỗi'; 
+                    btn.disabled = false; 
+                    showToast('Lỗi hủy công khai', 'error');
+                }
             });
         }
 
-        window.deleteFile = function(fileId, index) {
-            if (!confirm('Bạn có chắc muốn xóa vĩnh viễn file này trên Drive?')) return;
+        // Logic Xóa Yêu cầu Bấm 2 lần (Chống xóa nhầm thay cho confirm)
+        window.deleteFile = function(fileId, index, btn) {
+            if (btn.dataset.confirm !== 'true') {
+                btn.dataset.confirm = 'true';
+                btn.textContent = 'Chắc chắn?';
+                btn.classList.replace('bg-red-100', 'bg-red-500');
+                btn.classList.replace('text-red-700', 'text-white');
+                
+                // Trả lại trạng thái cũ sau 3 giây nếu không bấm tiếp
+                setTimeout(() => {
+                    if (btn.dataset.confirm === 'true') {
+                        btn.dataset.confirm = 'false';
+                        btn.textContent = 'Xóa';
+                        btn.classList.replace('bg-red-500', 'bg-red-100');
+                        btn.classList.replace('text-white', 'text-red-700');
+                    }
+                }, 3000);
+                return;
+            }
             
+            btn.textContent = 'Đang xóa...';
             fetch('/api/cloud-delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -451,8 +517,11 @@
                     history.splice(index, 1);
                     localStorage.setItem('cloudHistory', JSON.stringify(history));
                     renderCloudHistory();
+                    showToast('Đã xóa tệp vĩnh viễn!');
                 } else {
-                    alert('Lỗi xóa file!');
+                    btn.dataset.confirm = 'false';
+                    btn.textContent = 'Xóa';
+                    showToast('Lỗi xóa file!', 'error');
                 }
             });
         }

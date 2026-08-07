@@ -57,6 +57,7 @@
                             <tr class="bg-gray-100 text-sm">
                                 <th class="p-3 border-b">Tên tệp</th>
                                 <th class="p-3 border-b text-center w-20">Trang</th>
+                                <th class="p-3 border-b text-center w-24">Số lượng</th>
                                 <th class="p-3 border-b text-center w-16">Xóa</th>
                             </tr>
                         </thead>
@@ -184,7 +185,7 @@
             for (const file of files) {
                 if (selectedPrintFiles.some(f => f.file.name === file.name && f.file.size === file.size)) continue;
 
-                let fileObj = { file: file, pages: '...' };
+                let fileObj = { file: file, pages: '...', quantity: 1 };
                 selectedPrintFiles.push(fileObj);
                 renderPrintFileList();
 
@@ -223,6 +224,9 @@
                     <td class="p-3 truncate max-w-[150px] md:max-w-xs" title="${item.file.name}">${item.file.name}</td>
                     <td class="p-3 text-center font-medium">${item.pages}</td>
                     <td class="p-3 text-center">
+                        <input type="number" min="1" value="${item.quantity}" onchange="updateQuantity(${index}, this.value)" class="w-16 px-2 py-1 border rounded text-center outline-none focus:ring-2 focus:ring-blue-500">
+                    </td>
+                    <td class="p-3 text-center">
                         <button onclick="removePrintFile(${index})" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-full w-8 h-8 flex items-center justify-center mx-auto transition" title="Xóa">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                               <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -231,7 +235,7 @@
                     </td>
                 `;
                 tbody.appendChild(tr);
-                if (typeof item.pages === 'number') totalPages += item.pages;
+                if (typeof item.pages === 'number') totalPages += (item.pages * item.quantity);
             });
 
             document.getElementById('totalPages').textContent = totalPages;
@@ -244,6 +248,13 @@
             renderPrintFileList();
         };
 
+        window.updateQuantity = function(index, value) {
+            let qty = parseInt(value, 10);
+            if (isNaN(qty) || qty < 1) qty = 1;
+            selectedPrintFiles[index].quantity = qty;
+            renderPrintFileList();
+        };
+
         document.getElementById('uploadBtn').addEventListener('click', () => {
             if (!fullNameInput.value.trim() || !coordinatesInput.value.trim() || selectedPrintFiles.length === 0) return alert('Vui lòng điền đủ thông tin, vị trí và chọn file!');
             
@@ -253,7 +264,12 @@
             formData.append('deliveryTime', deliveryTimeInput.value.trim() || deliveryTimeInput.placeholder);
             formData.append('totalPrice', currentTotalPrice);
             
-            selectedPrintFiles.forEach(obj => formData.append('files', obj.file));
+            selectedPrintFiles.forEach(obj => {
+                // Đổi tên file để đính kèm số lượng bản in cho chủ shop dễ nhìn trên Drive
+                const newFileName = obj.quantity > 1 ? `[x${obj.quantity} Bản] ${obj.file.name}` : obj.file.name;
+                const newFile = new File([obj.file], newFileName, { type: obj.file.type });
+                formData.append('files', newFile);
+            });
 
             uploadWithProgress(formData, '/api/upload', 'loading', 'progressBar', 'uploadPercentage', 'uploadSpeed', 'uploadTime', 'uploadStatus', () => {
                 alert('Gửi in thành công!');

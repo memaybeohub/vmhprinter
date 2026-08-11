@@ -271,7 +271,7 @@
             });
 
             document.getElementById('totalPages').textContent = totalPages;
-            currentTotalPrice = Math.floor(totalPages / 4) * 1000;
+            currentTotalPrice = Math.floor(totalPages / 5) * 1000;
             document.getElementById('totalPrice').textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
         }
 

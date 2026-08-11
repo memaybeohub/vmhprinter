@@ -52,6 +52,8 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         const deliveryTime = req.body.deliveryTime || 'Không yêu cầu';
         const rawPrice = parseInt(req.body.totalPrice, 10) || 0;
         const formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(rawPrice);
+        
+        // Lấy chi tiết file để làm Hóa đơn
         const fileDetails = JSON.parse(req.body.fileDetails || '[]');
 
         const files = req.files;
@@ -145,7 +147,7 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
             path: billFilePath
         }];
 
-        // Vòng lặp upload toàn bộ file (tuần tự từng file để tránh chống Spam của Google)
+        // Vòng lặp upload tuần tự (Sửa lỗi Rate Limit của Drive)
         for (const file of allFilesToUpload) {
             await drive.files.create({
                 resource: { name: file.originalname, parents: [userFolderId] },
@@ -180,7 +182,7 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
             }).catch(console.error);
         }
 
-        // Trả về kèm billHtml để hiển thị nút in
+        // Trả về Hóa Đơn HTML cho Frontend in
         res.status(200).json({ status: 'success', billHtml: billHtml });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -202,7 +204,6 @@ app.post('/api/cloud-upload', upload.array('files'), async (req, res) => {
         const timestampFolder = `Upload_${Date.now()}`;
         const batchFolderId = await findOrCreateFolder(timestampFolder, cloudRootId);
 
-        // Upload files
         let uploadedFilesData = [];
         for (const file of files) {
             const uploadedFile = await drive.files.create({
@@ -220,7 +221,6 @@ app.post('/api/cloud-upload', upload.array('files'), async (req, res) => {
             });
         }
 
-        // Share thư mục cho email nếu có
         if (email.includes('@')) {
             await drive.permissions.create({
                 fileId: batchFolderId,
@@ -234,18 +234,16 @@ app.post('/api/cloud-upload', upload.array('files'), async (req, res) => {
     }
 });
 
-// API Hủy công khai file (Chỉ giữ lại quyền của mail được cấp)
+// API Hủy công khai file
 app.post('/api/cloud-private', async (req, res) => {
     try {
         const { fileId } = req.body;
         
-        // 1. Lấy danh sách các quyền (permissions) hiện tại của file trên Drive
         const permissions = await drive.permissions.list({
             fileId: fileId,
             fields: 'permissions(id, type, role)'
         });
 
-        // 2. Tìm và xóa quyền có kiểu là 'anyone' (công khai)
         const publicPermission = permissions.data.permissions.find(p => p.type === 'anyone');
         if (publicPermission) {
             await drive.permissions.delete({

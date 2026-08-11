@@ -271,7 +271,10 @@
             });
 
             document.getElementById('totalPages').textContent = totalPages;
-            currentTotalPrice = Math.floor(totalPages / 4) * 1000;
+            
+            // Sửa công thức tính tiền: Tổng số trang * 200đ
+            currentTotalPrice = totalPages * 200;
+            
             document.getElementById('totalPrice').textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
         }
 

@@ -1,534 +1,292 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dịch Vụ Tiện Ích</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-</head>
-<body class="bg-gray-100 text-gray-800 font-sans min-h-screen p-4 md:p-8">
+const express = require('express');
+const multer = require('multer');
+const { google } = require('googleapis');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
 
-    <!-- Toast Thông báo góc phải màn hình -->
-    <div id="toast" class="fixed top-4 right-4 shadow-lg rounded-lg px-6 py-4 border-l-4 hidden z-50 transition-all font-semibold">
-        <p id="toastMsg"></p>
-    </div>
+const app = express();
+app.use(cors());
+app.use(express.static('public'));
+app.use(express.json());
 
-    <div class="max-w-4xl mx-auto space-y-8">
-        
-        <!-- ================= KHUNG 1: DỊCH VỤ IN ẤN ================= -->
-        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
-            <h1 class="text-2xl font-bold mb-6 text-blue-600 border-b pb-4">🖨️ Tải tài liệu in ấn</h1>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                    <label class="block text-sm font-semibold mb-2">Họ và Tên</label>
-                    <input type="text" id="fullName" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold mb-2">Giờ giao hàng</label>
-                    <input type="text" id="deliveryTime" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-            </div>
+const upload = multer({ dest: 'uploads/' });
 
-            <!-- Lấy toạ độ -->
-            <div class="mb-6">
-                <label class="block text-sm font-semibold mb-2">Vị trí giao hàng (Toạ độ)</label>
-                <div class="flex gap-2">
-                    <input type="text" id="coordinates" placeholder="Vĩ độ, Kinh độ" class="w-full px-4 py-2 border rounded-lg bg-gray-50 outline-none" readonly>
-                    <button id="getLocationBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium whitespace-nowrap transition">Lấy vị trí</button>
-                </div>
-                <p id="locationError" class="text-red-500 text-sm mt-1 hidden">Không thể lấy vị trí, vui lòng kiểm tra quyền truy cập!</p>
-            </div>
+// ==========================================
+// CẤU HÌNH OAUTH2
+// ==========================================
+const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    "https://developers.google.com/oauthplayground"
+);
+oauth2Client.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
+const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-            <!-- Vùng kéo thả file -->
-            <div id="dropzone" class="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center bg-blue-50 cursor-pointer hover:bg-blue-100 transition">
-                <p class="text-gray-600 font-medium">Kéo thả tài liệu vào đây (PDF, DOCX, Ảnh)</p>
-                <input type="file" id="fileInput" class="hidden" multiple accept=".pdf,.docx,.png,.jpg,.jpeg">
-            </div>
+let dailyOrders = [];
+let currentDayTracker = new Date().getDate();
 
-            <!-- DANH SÁCH FILE IN ẤN -->
-            <div class="mt-6 hidden" id="fileListContainer">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="font-bold text-gray-700">Tài liệu đã chọn:</h3>
-                    <div class="space-x-2 flex">
-                        <button id="addMoreFilesBtn" class="px-3 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-sm font-medium transition flex items-center gap-1">➕ Thêm file</button>
-                        <button id="clearAllFilesBtn" class="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-medium transition flex items-center gap-1">🗑️ Xóa tất cả</button>
-                    </div>
-                </div>
+async function findOrCreateFolder(folderName, parentId) {
+    if (!parentId) throw new Error("Thiếu ID thư mục cha!");
+    try {
+        const query = `mimeType='application/vnd.google-apps.folder' and trashed=false and name='${folderName}' and '${parentId}' in parents`;
+        const response = await drive.files.list({ q: query, spaces: 'drive', fields: 'files(id, name)' });
+        if (response.data.files.length > 0) return response.data.files[0].id;
 
-                <div class="overflow-x-auto rounded-lg border mb-4">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-gray-100 text-sm">
-                                <th class="p-3 border-b">Tên tệp</th>
-                                <th class="p-3 border-b text-center w-20">Trang</th>
-                                <th class="p-3 border-b text-center w-24">Số lượng</th>
-                                <th class="p-3 border-b text-center w-16">Xóa</th>
-                            </tr>
-                        </thead>
-                        <tbody id="fileTableBody" class="text-sm"></tbody>
-                    </table>
-                </div>
+        const folder = await drive.files.create({
+            resource: { name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
+            fields: 'id'
+        });
+        return folder.data.id;
+    } catch (error) { throw error; }
+}
 
-                <!-- Bảng tổng tính tiền -->
-                <div class="bg-blue-50 p-4 rounded-lg flex justify-between items-center border border-blue-100">
-                    <div><p class="text-gray-600">Tổng trang: <span id="totalPages" class="font-bold text-black text-lg">0</span></p></div>
-                    <div class="text-right text-blue-600 font-bold text-2xl" id="totalPrice">0đ</div>
-                </div>
-                
-                <button id="uploadBtn" class="mt-6 w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition">Gửi File In</button>
-                
-                <!-- Thanh tiến trình Upload In -->
-                <div id="loading" class="hidden mt-4 bg-gray-50 border rounded-lg p-4 text-sm">
-                    <div class="flex justify-between mb-1"><span id="uploadStatus">Đang xử lý...</span><span id="uploadPercentage" class="text-blue-600 font-bold">0%</span></div>
-                    <div class="w-full bg-gray-200 rounded-full h-2 mb-1"><div id="progressBar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div></div>
-                    <div class="flex justify-between text-xs text-gray-500"><span id="uploadSpeed">0 MB/s</span><span id="uploadTime">Đang tính...</span></div>
-                </div>
-            </div>
-        </div>
+// ==========================================
+// 1. API MÁY IN (Có Discord Webhook)
+// ==========================================
+app.post('/api/upload', upload.array('files'), async (req, res) => {
+    try {
+        const userName = req.body.fullName || 'Unknown_User';
+        const coordinates = req.body.coordinates || 'Chưa cung cấp';
+        const deliveryTime = req.body.deliveryTime || 'Không yêu cầu';
+        const rawPrice = parseInt(req.body.totalPrice, 10) || 0;
+        const formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(rawPrice);
+        const fileDetails = JSON.parse(req.body.fileDetails || '[]');
 
-        <!-- ================= KHUNG 2: Ổ ĐĨA ĐÁM MÂY ================= -->
-        <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg border-t-4 border-purple-500">
-            <h1 class="text-2xl font-bold mb-2 text-purple-600">☁️ Đám Mây Mini</h1>
-            <p class="text-gray-500 text-sm mb-6">Tải lên và chia sẻ không giới hạn định dạng. File sẽ được lưu vào Drive bảo mật.</p>
-            
-            <div class="mb-6">
-                <label class="block text-sm font-semibold mb-2">Email nhận quyền truy cập (Không bắt buộc)</label>
-                <input type="email" id="cloudEmail" placeholder="Nhập email Gmail..." class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none">
-            </div>
+        const files = req.files;
+        const rootFolderId = process.env.DRIVE_PARENT_FOLDER_ID;
 
-            <div id="cloudDropzone" class="border-2 border-dashed border-purple-300 rounded-xl p-8 text-center bg-purple-50 cursor-pointer hover:bg-purple-100 transition">
-                <p class="text-gray-600 font-medium">Click hoặc Kéo thả mọi loại file vào đây</p>
-                <input type="file" id="cloudFileInput" class="hidden" multiple>
-            </div>
-            <p id="cloudSelectedFiles" class="text-sm text-gray-600 mt-2 font-medium"></p>
+        if (!rootFolderId) throw new Error("Thiếu cấu hình thư mục máy in.");
+        if (files.length === 0) throw new Error("Không có file.");
 
-            <button id="cloudUploadBtn" class="mt-4 w-full bg-purple-600 text-white font-bold py-3 rounded-lg hover:bg-purple-700 hidden transition">Tải Lên Đám Mây</button>
-
-            <!-- Thanh tiến trình Upload Cloud -->
-            <div id="cloudLoading" class="hidden mt-4 bg-gray-50 border rounded-lg p-4 text-sm">
-                <div class="flex justify-between mb-1"><span id="cloudStatus">Đang tải...</span><span id="cloudPercentage" class="text-purple-600 font-bold">0%</span></div>
-                <div class="w-full bg-gray-200 rounded-full h-2 mb-1"><div id="cloudProgressBar" class="bg-purple-600 h-2 rounded-full" style="width: 0%"></div></div>
-                <div class="flex justify-between text-xs text-gray-500"><span id="cloudSpeed">0 MB/s</span><span id="cloudTime">Đang tính...</span></div>
-            </div>
-
-            <!-- Lịch sử tải lên Đám mây -->
-            <div class="mt-8 border-t pt-6">
-                <h3 class="font-bold text-gray-700 mb-3">🕒 Lịch sử File của bạn (Lưu trên máy này)</h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <tbody id="historyTableBody">
-                            <!-- JS Sẽ render lịch sử vào đây -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- TOÀN BỘ JAVASCRIPT ĐƯỢC GỘP VÀO ĐÂY -->
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
-        // Hàm hiển thị thông báo góc màn hình (Toast)
-        function showToast(msg, type = 'success') {
-            const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toastMsg');
-            toastMsg.textContent = msg;
-            
-            if (type === 'error') {
-                toast.className = 'fixed top-4 right-4 shadow-lg rounded-lg px-6 py-4 border-l-4 z-50 transition-all font-semibold bg-red-50 border-red-500 text-red-700';
-            } else {
-                toast.className = 'fixed top-4 right-4 shadow-lg rounded-lg px-6 py-4 border-l-4 z-50 transition-all font-semibold bg-green-50 border-green-500 text-green-700';
-            }
-            
-            toast.classList.remove('hidden');
-            setTimeout(() => toast.classList.add('hidden'), 3500);
+        const vnTime = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+        if (vnTime.getDate() !== currentDayTracker) {
+            dailyOrders = [];
+            currentDayTracker = vnTime.getDate();
         }
 
+        const dateString = `${vnTime.getDate()}/${vnTime.getMonth() + 1}`;
+        const timeString = `${vnTime.getHours()}h${vnTime.getMinutes()}`;
+        const folderName = `${userName} ${timeString} ngày ${dateString}`;
+
+        const dateFolderId = await findOrCreateFolder(dateString, rootFolderId);
+        const userFolderId = await findOrCreateFolder(folderName, dateFolderId);
+
         // ==========================================
-        // A. LOGIC MÁY IN
+        // TẠO FILE HÓA ĐƠN (BILL) HTML CÓ THỂ IN ĐƯỢC
         // ==========================================
-        const fullNameInput = document.getElementById('fullName');
-        const deliveryTimeInput = document.getElementById('deliveryTime');
-        const coordinatesInput = document.getElementById('coordinates');
-        const getLocationBtn = document.getElementById('getLocationBtn');
-
-        document.addEventListener('DOMContentLoaded', () => {
-            if (localStorage.getItem('userName')) fullNameInput.value = localStorage.getItem('userName');
-            if (localStorage.getItem('cloudEmail')) document.getElementById('cloudEmail').value = localStorage.getItem('cloudEmail');
-            
-            const today = new Date();
-            deliveryTimeInput.placeholder = `18H chiều nay (${today.getDate()}/${today.getMonth() + 1})`;
-            renderCloudHistory();
+        let rowsHtml = '';
+        let totalPagesAll = 0;
+        fileDetails.forEach((f, index) => {
+            const qty = f.quantity || 1;
+            const totalFilePages = (f.pages === '...' ? 1 : f.pages) * qty;
+            totalPagesAll += totalFilePages;
+            rowsHtml += `
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${index + 1}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${f.name}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${f.pages}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;"><strong>x${qty}</strong></td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${totalFilePages}</td>
+                </tr>
+            `;
         });
 
-        fullNameInput.addEventListener('input', (e) => localStorage.setItem('userName', e.target.value));
+        const billHtml = `
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head>
+            <meta charset="UTF-8">
+            <title>Hóa Đơn - ${userName}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 800px; margin: 0 auto; }
+                h2 { text-align: center; color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+                .info p { margin: 5px 0; font-size: 1.1em; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th { background-color: #f3f4f6; padding: 12px; text-align: center; border: 1px solid #ddd; }
+                .total { margin-top: 20px; text-align: right; font-size: 1.2em; }
+                .price { color: #e11d48; font-size: 1.5em; font-weight: bold; }
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <button class="no-print" onclick="window.print()" style="padding: 10px 20px; background: #2563eb; color: #fff; border: none; border-radius: 5px; cursor: pointer; float: right;">🖨️ In Hóa Đơn Này</button>
+            <h2>HÓA ĐƠN IN ẤN</h2>
+            <div class="info">
+                <p><strong>Khách hàng:</strong> ${userName}</p>
+                <p><strong>Thời gian đặt:</strong> ${timeString} ngày ${dateString}</p>
+                <p><strong>Giờ giao hàng:</strong> ${deliveryTime}</p>
+                <p><strong>Toạ độ giao:</strong> ${coordinates}</p>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>STT</th><th>Tên File</th><th>Số trang/bản</th><th>Số lượng</th><th>Tổng trang</th></tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+            <div class="total">
+                <p>Tổng số trang: <strong>${totalPagesAll}</strong></p>
+                <p>Thành tiền: <span class="price">${formattedPrice}</span></p>
+            </div>
+        </body>
+        </html>
+        `;
 
-        getLocationBtn.addEventListener('click', () => {
-            if (!navigator.geolocation) {
-                showToast("Trình duyệt không hỗ trợ lấy vị trí.", "error");
-                return;
-            }
-            getLocationBtn.textContent = "...";
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    coordinatesInput.value = `${pos.coords.latitude}, ${pos.coords.longitude}`;
-                    getLocationBtn.textContent = "Đã lấy ✓";
-                    document.getElementById('locationError').classList.add('hidden');
-                },
-                () => {
-                    getLocationBtn.textContent = "Lỗi";
-                    document.getElementById('locationError').classList.remove('hidden');
-                }
-            );
-        });
+        // Lưu file Hóa đơn tạm thời
+        const billFileName = `[HOA_DON]_Khach_${userName.replace(/\s/g, '_')}.html`;
+        const billFilePath = path.join(__dirname, 'uploads', billFileName);
+        fs.writeFileSync(billFilePath, billHtml);
 
-        // -- QUẢN LÝ DANH SÁCH FILE IN ẤN --
-        let selectedPrintFiles = [];
-        let currentTotalPrice = 0;
-        const dropzone = document.getElementById('dropzone');
-        const fileInput = document.getElementById('fileInput');
+        // Đưa file Hóa đơn vào mảng để up chung với các file tài liệu
+        const allFilesToUpload = [...files, {
+            originalname: billFileName,
+            mimetype: 'text/html',
+            path: billFilePath
+        }];
 
-        document.getElementById('addMoreFilesBtn').addEventListener('click', () => fileInput.click());
-        document.getElementById('clearAllFilesBtn').addEventListener('click', () => {
-            selectedPrintFiles = [];
-            renderPrintFileList();
-        });
-
-        dropzone.addEventListener('click', () => fileInput.click());
-        dropzone.addEventListener('drop', (e) => { e.preventDefault(); handlePrintFiles(Array.from(e.dataTransfer.files)); });
-        dropzone.addEventListener('dragover', (e) => e.preventDefault());
-        fileInput.addEventListener('change', (e) => {
-            handlePrintFiles(Array.from(e.target.files));
-            fileInput.value = ''; 
-        });
-
-        async function handlePrintFiles(files) {
-            if (files.length === 0) return;
-            document.getElementById('fileListContainer').classList.remove('hidden');
-
-            for (const file of files) {
-                // Chống trùng lặp
-                if (selectedPrintFiles.some(f => f.file.name === file.name && f.file.size === file.size)) continue;
-
-                let fileObj = { file: file, pages: '...', quantity: 1 };
-                selectedPrintFiles.push(fileObj);
-                renderPrintFileList();
-
-                let pages = 1;
-                if (file.type === 'application/pdf') {
-                    try { const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise; pages = pdf.numPages; } catch(e){ pages=1; }
-                } else if (file.name.endsWith('.docx')) {
-                    try { 
-                        const zip = await JSZip.loadAsync(await file.arrayBuffer());
-                        const match = (await zip.file("docProps/app.xml").async("string")).match(/<Pages>(\d+)<\/Pages>/);
-                        if (match) pages = parseInt(match[1], 10);
-                    } catch(e){ pages=1; }
-                }
-
-                fileObj.pages = pages;
-                renderPrintFileList();
-            }
+        // Vòng lặp upload toàn bộ file (tuần tự từng file để tránh chống Spam của Google)
+        for (const file of allFilesToUpload) {
+            await drive.files.create({
+                resource: { name: file.originalname, parents: [userFolderId] },
+                media: { mimeType: file.mimetype, body: fs.createReadStream(file.path) },
+                fields: 'id'
+            });
+            fs.unlinkSync(file.path); 
         }
 
-        function renderPrintFileList() {
-            const tbody = document.getElementById('fileTableBody');
-            tbody.innerHTML = '';
-            let totalPages = 0;
+        let parsedHour = 24;
+        const timeMatch = deliveryTime.match(/(\d+)/);
+        if (timeMatch) parsedHour = parseInt(timeMatch[1], 10);
 
-            if (selectedPrintFiles.length === 0) {
-                document.getElementById('fileListContainer').classList.add('hidden');
-                return;
-            } else {
-                document.getElementById('fileListContainer').classList.remove('hidden');
-            }
+        dailyOrders.push({ name: userName, coords: coordinates, time: deliveryTime, hour: parsedHour, price: formattedPrice });
+        dailyOrders.sort((a, b) => a.hour - b.hour);
 
-            selectedPrintFiles.forEach((item, index) => {
-                const tr = document.createElement('tr');
-                tr.className = "border-b hover:bg-gray-50";
-                tr.innerHTML = `
-                    <td class="p-3 truncate max-w-[150px] md:max-w-xs" title="${item.file.name}">${item.file.name}</td>
-                    <td class="p-3 text-center font-medium">${item.pages}</td>
-                    <td class="p-3 text-center">
-                        <input type="number" min="1" value="${item.quantity}" onchange="updateQuantity(${index}, this.value)" class="w-16 px-2 py-1 border rounded text-center outline-none focus:ring-2 focus:ring-blue-500">
-                    </td>
-                    <td class="p-3 text-center">
-                        <button onclick="removePrintFile(${index})" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-full w-8 h-8 flex items-center justify-center mx-auto transition" title="Xóa">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-
-                if (typeof item.pages === 'number') {
-                totalPages += (item.pages * item.quantity);
-            }
+        let summaryText = "\n\n--------------------------\n**📋 LỊCH TRÌNH CẦN GIAO HÔM NAY:**\n";
+        dailyOrders.forEach((order, index) => {
+            summaryText += `\`${index + 1}.\` **${order.time}** - ${order.name} (📍 Toạ độ: ${order.coords}) - 💵 **Thu: ${order.price}**\n`;
         });
 
-        document.getElementById('totalPages').textContent = totalPages;
-        
-        // Sửa công thức tính tiền: Tổng số trang * 200đ và làm tròn xuống hàng nghìn
-        let rawPrice = totalPages * 200;
-        currentTotalPrice = Math.floor(rawPrice / 1000) * 1000;
-        
-        document.getElementById('totalPrice').textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
+        const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+        if (webhookUrl) {
+            const folderLink = `https://drive.google.com/drive/folders/${userFolderId}`;
+            const mapLink = `https://www.google.com/maps?q=${coordinates.replace(/\s/g, '')}`;
+            const discordMessage = `<@884662992921313352> có file in mới!\n👤 Người nhận: **${userName}**\n📍 Toạ độ: **${coordinates}**\n⏰ Giờ: **${deliveryTime}**\n💵 Cần thu: **${formattedPrice}**\n🗺️ Bản đồ: ${mapLink}\n📁 Link file: ${folderLink}${summaryText}`;
+            
+            fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: discordMessage })
+            }).catch(console.error);
+        }
+
+        // Trả về kèm billHtml để hiển thị nút in
+        res.status(200).json({ status: 'success', billHtml: billHtml });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
+});
 
-    window.removePrintFile = function(index) {
-            selectedPrintFiles.splice(index, 1);
-            renderPrintFileList();
-        };
+// ==========================================
+// 2. API Ổ ĐĨA ĐÁM MÂY MINI
+// ==========================================
+app.post('/api/cloud-upload', upload.array('files'), async (req, res) => {
+    try {
+        const email = req.body.email || '';
+        const files = req.files;
+        const cloudRootId = process.env.CLOUD_PARENT_FOLDER_ID;
 
-        window.updateQuantity = function(index, value) {
-            let qty = parseInt(value, 10);
-            if (isNaN(qty) || qty < 1) qty = 1;
-            selectedPrintFiles[index].quantity = qty;
-            renderPrintFileList();
-        };
+        if (!cloudRootId) throw new Error("Chưa cấu hình CLOUD_PARENT_FOLDER_ID.");
+        if (files.length === 0) throw new Error("Không có file.");
 
-        document.getElementById('uploadBtn').addEventListener('click', () => {
-            if (!fullNameInput.value.trim() || !coordinatesInput.value.trim() || selectedPrintFiles.length === 0) {
-                showToast('Vui lòng điền đủ thông tin, vị trí và chọn file!', 'error');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('fullName', fullNameInput.value.trim());
-            formData.append('coordinates', coordinatesInput.value.trim());
-            formData.append('deliveryTime', deliveryTimeInput.value.trim() || deliveryTimeInput.placeholder);
-            formData.append('totalPrice', currentTotalPrice);
-            
-            // Gửi mảng chi tiết Hóa đơn lên Backend
-            const fileDetails = selectedPrintFiles.map(obj => ({
-                name: obj.file.name,
-                pages: obj.pages,
-                quantity: obj.quantity
-            }));
-            formData.append('fileDetails', JSON.stringify(fileDetails));
+        const timestampFolder = `Upload_${Date.now()}`;
+        const batchFolderId = await findOrCreateFolder(timestampFolder, cloudRootId);
 
-            // Đổi tên file theo số lượng
-            selectedPrintFiles.forEach(obj => {
-                const newFileName = obj.quantity > 1 ? `[x${obj.quantity} Bản] ${obj.file.name}` : obj.file.name;
-                const newFile = new File([obj.file], newFileName, { type: obj.file.type });
-                formData.append('files', newFile);
+        // Upload files
+        let uploadedFilesData = [];
+        for (const file of files) {
+            const uploadedFile = await drive.files.create({
+                resource: { name: file.originalname, parents: [batchFolderId] },
+                media: { mimeType: file.mimetype, body: fs.createReadStream(file.path) },
+                fields: 'id, name, webViewLink'
             });
-
-            uploadWithProgress(formData, '/api/upload', 'loading', 'progressBar', 'uploadPercentage', 'uploadSpeed', 'uploadTime', 'uploadStatus', () => {
-                showToast('Gửi in thành công!');
-                selectedPrintFiles = [];
-                renderPrintFileList();
-                fileInput.value = '';
+            fs.unlinkSync(file.path);
+            
+            uploadedFilesData.push({
+                id: uploadedFile.data.id,
+                name: uploadedFile.data.name,
+                link: uploadedFile.data.webViewLink,
+                date: new Date().toLocaleString("vi-VN")
             });
+        }
+
+        // Share thư mục cho email nếu có
+        if (email.includes('@')) {
+            await drive.permissions.create({
+                fileId: batchFolderId,
+                requestBody: { type: 'user', role: 'reader', emailAddress: email }
+            });
+        }
+
+        res.status(200).json({ status: 'success', files: uploadedFilesData });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// API Hủy công khai file (Chỉ giữ lại quyền của mail được cấp)
+app.post('/api/cloud-private', async (req, res) => {
+    try {
+        const { fileId } = req.body;
+        
+        // 1. Lấy danh sách các quyền (permissions) hiện tại của file trên Drive
+        const permissions = await drive.permissions.list({
+            fileId: fileId,
+            fields: 'permissions(id, type, role)'
         });
 
-        // ==========================================
-        // B. LOGIC ĐÁM MÂY MINI
-        // ==========================================
-        const cloudEmailInput = document.getElementById('cloudEmail');
-        const cloudDropzone = document.getElementById('cloudDropzone');
-        const cloudFileInput = document.getElementById('cloudFileInput');
-        const cloudSelectedFilesText = document.getElementById('cloudSelectedFiles');
-        const cloudUploadBtn = document.getElementById('cloudUploadBtn');
-        let selectedCloudFiles = [];
-
-        cloudEmailInput.addEventListener('input', (e) => localStorage.setItem('cloudEmail', e.target.value));
-
-        cloudDropzone.addEventListener('click', () => cloudFileInput.click());
-        cloudDropzone.addEventListener('drop', (e) => { e.preventDefault(); handleCloudFiles(e.dataTransfer.files); });
-        cloudDropzone.addEventListener('dragover', (e) => e.preventDefault());
-        cloudFileInput.addEventListener('change', (e) => handleCloudFiles(e.target.files));
-
-        function handleCloudFiles(files) {
-            if (files.length === 0) return;
-            selectedCloudFiles = Array.from(files);
-            cloudSelectedFilesText.textContent = `Đã chọn ${files.length} tệp.`;
-            cloudUploadBtn.classList.remove('hidden');
+        // 2. Tìm và xóa quyền có kiểu là 'anyone' (công khai)
+        const publicPermission = permissions.data.permissions.find(p => p.type === 'anyone');
+        if (publicPermission) {
+            await drive.permissions.delete({
+                fileId: fileId,
+                permissionId: publicPermission.id
+            });
         }
 
-        cloudUploadBtn.addEventListener('click', () => {
-            const formData = new FormData();
-            formData.append('email', cloudEmailInput.value.trim());
-            selectedCloudFiles.forEach(f => formData.append('files', f));
+        res.status(200).json({ status: 'success' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
-            uploadWithProgress(formData, '/api/cloud-upload', 'cloudLoading', 'cloudProgressBar', 'cloudPercentage', 'cloudSpeed', 'cloudTime', 'cloudStatus', (res) => {
-                showToast('Đã lưu lên Đám Mây!');
-                saveToHistory(res.files);
-                cloudSelectedFilesText.textContent = '';
-                cloudUploadBtn.classList.add('hidden');
-                selectedCloudFiles = [];
-            });
+// API Bật công khai file
+app.post('/api/cloud-public', async (req, res) => {
+    try {
+        const { fileId } = req.body;
+        await drive.permissions.create({
+            fileId: fileId,
+            requestBody: { type: 'anyone', role: 'reader' }
         });
+        res.status(200).json({ status: 'success' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
-        // ==========================================
-        // C. HÀM DÙNG CHUNG & LỊCH SỬ
-        // ==========================================
-        function uploadWithProgress(formData, url, loadingId, barId, percentId, speedId, timeId, statusId, onSuccess) {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', url, true);
-            
-            document.getElementById(loadingId).classList.remove('hidden');
-            document.getElementById(statusId).textContent = 'Đang tải lên...';
-            
-            let lastTime = Date.now(), lastLoaded = 0;
+// API Xóa file
+app.post('/api/cloud-delete', async (req, res) => {
+    try {
+        const { fileId } = req.body;
+        await drive.files.delete({ fileId: fileId });
+        res.status(200).json({ status: 'success' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    document.getElementById(barId).style.width = percent + '%';
-                    document.getElementById(percentId).textContent = percent + '%';
-
-                    const now = Date.now();
-                    const diff = (now - lastTime) / 1000;
-                    if (diff >= 0.5) {
-                        const speed = (e.loaded - lastLoaded) / diff;
-                        document.getElementById(speedId).textContent = (speed / 1048576).toFixed(2) + ' MB/s';
-                        document.getElementById(timeId).textContent = 'Còn lại: ~' + Math.round((e.total - e.loaded) / speed) + 's';
-                        lastTime = now; lastLoaded = e.loaded;
-                    }
-                    if (percent === 100) {
-                        document.getElementById(statusId).textContent = 'Hệ thống đang xử lý, vui lòng chờ...';
-                        document.getElementById(speedId).textContent = '';
-                        document.getElementById(timeId).textContent = '';
-                    }
-                }
-            };
-
-            xhr.onload = () => {
-                document.getElementById(loadingId).classList.add('hidden');
-                if (xhr.status === 200) {
-                    onSuccess(JSON.parse(xhr.responseText));
-                } else {
-                    showToast('Có lỗi xảy ra: ' + xhr.responseText, 'error');
-                }
-            };
-            xhr.send(formData);
-        }
-
-        function saveToHistory(newFiles) {
-            let history = JSON.parse(localStorage.getItem('cloudHistory') || '[]');
-            history = [...newFiles, ...history]; 
-            localStorage.setItem('cloudHistory', JSON.stringify(history));
-            renderCloudHistory();
-        }
-
-        function renderCloudHistory() {
-            const history = JSON.parse(localStorage.getItem('cloudHistory') || '[]');
-            const tbody = document.getElementById('historyTableBody');
-            tbody.innerHTML = '';
-            
-            if (history.length === 0) {
-                tbody.innerHTML = '<tr><td class="text-gray-400 italic py-2">Chưa có file nào được tải lên máy này.</td></tr>';
-                return;
-            }
-
-            history.forEach((file, index) => {
-                const tr = document.createElement('tr');
-                tr.className = 'border-b hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="py-3 pr-2">
-                        <p class="font-medium text-gray-800 truncate max-w-[150px] md:max-w-xs" title="${file.name}">${file.name}</p>
-                        <p class="text-xs text-gray-400">${file.date}</p>
-                    </td>
-                    <td class="py-3 text-right space-x-1 whitespace-nowrap">
-                        <button onclick="copyLink('${file.link}')" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-xs">Copy Link</button>
-                        <button onclick="makePublic('${file.id}', this)" class="px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded text-xs">Bật C.Khai</button>
-                        <button onclick="makePrivate('${file.id}', this)" class="px-2 py-1 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded text-xs">Hủy C.Khai</button>
-                        <button onclick="deleteFile('${file.id}', ${index}, this)" class="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs transition-colors duration-300">Xóa</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        window.copyLink = function(link) {
-            navigator.clipboard.writeText(link).then(() => showToast('Đã copy link!'));
-        }
-
-        window.makePublic = function(fileId, btn) {
-            btn.textContent = 'Đang bật...';
-            btn.disabled = true;
-            fetch('/api/cloud-public', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fileId })
-            }).then(res => {
-                if(res.ok) { 
-                    btn.textContent = 'Đã mở C.Khai'; 
-                    btn.classList.replace('bg-green-100', 'bg-gray-100'); 
-                    showToast('Đã bật công khai!');
-                } else { 
-                    btn.textContent = 'Lỗi'; 
-                    btn.disabled = false; 
-                    showToast('Lỗi bật công khai', 'error');
-                }
-            });
-        }
-
-        window.makePrivate = function(fileId, btn) {
-            btn.textContent = 'Đang hủy...';
-            btn.disabled = true;
-            fetch('/api/cloud-private', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fileId })
-            }).then(res => {
-                if(res.ok) { 
-                    btn.textContent = 'Đã riêng tư'; 
-                    btn.classList.replace('bg-yellow-100', 'bg-gray-100');
-                    btn.classList.replace('text-yellow-700', 'text-gray-600');
-                    showToast('Đã hủy quyền công khai!');
-                } else { 
-                    btn.textContent = 'Lỗi'; 
-                    btn.disabled = false; 
-                    showToast('Lỗi hủy công khai', 'error');
-                }
-            });
-        }
-
-        // Logic Xóa Yêu cầu Bấm 2 lần (Chống xóa nhầm thay cho confirm)
-        window.deleteFile = function(fileId, index, btn) {
-            if (btn.dataset.confirm !== 'true') {
-                btn.dataset.confirm = 'true';
-                btn.textContent = 'Chắc chắn?';
-                btn.classList.replace('bg-red-100', 'bg-red-500');
-                btn.classList.replace('text-red-700', 'text-white');
-                
-                // Trả lại trạng thái cũ sau 3 giây nếu không bấm tiếp
-                setTimeout(() => {
-                    if (btn.dataset.confirm === 'true') {
-                        btn.dataset.confirm = 'false';
-                        btn.textContent = 'Xóa';
-                        btn.classList.replace('bg-red-500', 'bg-red-100');
-                        btn.classList.replace('text-white', 'text-red-700');
-                    }
-                }, 3000);
-                return;
-            }
-            
-            btn.textContent = 'Đang xóa...';
-            fetch('/api/cloud-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fileId })
-            }).then(res => {
-                if(res.ok) {
-                    let history = JSON.parse(localStorage.getItem('cloudHistory'));
-                    history.splice(index, 1);
-                    localStorage.setItem('cloudHistory', JSON.stringify(history));
-                    renderCloudHistory();
-                    showToast('Đã xóa tệp vĩnh viễn!');
-                } else {
-                    btn.dataset.confirm = 'false';
-                    btn.textContent = 'Xóa';
-                    showToast('Lỗi xóa file!', 'error');
-                }
-            });
-        }
-    </script>
-</body>
-</html>
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
+});

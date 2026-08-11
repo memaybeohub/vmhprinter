@@ -3,7 +3,7 @@ const multer = require('multer');
 const { google } = require('googleapis');
 const cors = require('cors');
 const fs = require('fs');
-const path = require('path'); // Đã bổ sung thư viện path
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -27,7 +27,6 @@ const drive = google.drive({ version: 'v3', auth: oauth2Client });
 let dailyOrders = [];
 let currentDayTracker = new Date().getDate();
 
-// Hàm tìm hoặc tạo thư mục
 async function findOrCreateFolder(folderName, parentId) {
     if (!parentId) throw new Error("Thiếu ID thư mục cha!");
     try {
@@ -44,19 +43,16 @@ async function findOrCreateFolder(folderName, parentId) {
 }
 
 // ==========================================
-// 1. API MÁY IN (Có Discord Webhook & Tạo Bill HTML)
+// 1. API MÁY IN (Có Discord Webhook)
 // ==========================================
 app.post('/api/upload', upload.array('files'), async (req, res) => {
     try {
-        // Lấy thông tin từ Frontend gửi lên
         const userName = req.body.fullName || 'Unknown_User';
         const coordinates = req.body.coordinates || 'Chưa cung cấp';
         const deliveryTime = req.body.deliveryTime || 'Không yêu cầu';
-        
-        // Lấy chi tiết file và số tiền (Bổ sung sửa lỗi)
-        const fileDetails = JSON.parse(req.body.fileDetails || '[]');
         const rawPrice = parseInt(req.body.totalPrice, 10) || 0;
         const formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(rawPrice);
+        const fileDetails = JSON.parse(req.body.fileDetails || '[]');
 
         const files = req.files;
         const rootFolderId = process.env.DRIVE_PARENT_FOLDER_ID;
@@ -64,14 +60,12 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         if (!rootFolderId) throw new Error("Thiếu cấu hình thư mục máy in.");
         if (files.length === 0) throw new Error("Không có file.");
 
-        // Reset danh sách lịch trình nếu sang ngày mới
         const vnTime = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
         if (vnTime.getDate() !== currentDayTracker) {
             dailyOrders = [];
             currentDayTracker = vnTime.getDate();
         }
 
-        // Tạo tên thư mục theo ngày giờ
         const dateString = `${vnTime.getDate()}/${vnTime.getMonth() + 1}`;
         const timeString = `${vnTime.getHours()}h${vnTime.getMinutes()}`;
         const folderName = `${userName} ${timeString} ngày ${dateString}`;
@@ -85,7 +79,6 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         let rowsHtml = '';
         let totalPagesAll = 0;
         fileDetails.forEach((f, index) => {
-            // Hỗ trợ trường hợp quantity không có thì mặc định là 1
             const qty = f.quantity || 1;
             const totalFilePages = (f.pages === '...' ? 1 : f.pages) * qty;
             totalPagesAll += totalFilePages;
@@ -140,60 +133,45 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         </html>
         `;
 
-        // Lưu file Hóa đơn tạm thời vào server
+        // Lưu file Hóa đơn tạm thời
         const billFileName = `[HOA_DON]_Khach_${userName.replace(/\s/g, '_')}.html`;
         const billFilePath = path.join(__dirname, 'uploads', billFileName);
         fs.writeFileSync(billFilePath, billHtml);
 
-        // Gộp chung file Hóa đơn vào danh sách file của khách để up một lượt
+        // Đưa file Hóa đơn vào mảng để up chung với các file tài liệu
         const allFilesToUpload = [...files, {
             originalname: billFileName,
             mimetype: 'text/html',
             path: billFilePath
         }];
 
-        // Vòng lặp upload toàn bộ file lên Drive
-        const uploadPromises = allFilesToUpload.map(async (file) => {
-            const uploadedFile = await drive.files.create({
+        // Vòng lặp upload toàn bộ file (tuần tự từng file để tránh chống Spam của Google)
+        for (const file of allFilesToUpload) {
+            await drive.files.create({
                 resource: { name: file.originalname, parents: [userFolderId] },
                 media: { mimeType: file.mimetype, body: fs.createReadStream(file.path) },
                 fields: 'id'
             });
-            // Tải xong thì xóa file rác trong máy chủ
             fs.unlinkSync(file.path); 
-            return uploadedFile.data.id;
-        });
+        }
 
-        await Promise.all(uploadPromises);
-
-        // Sắp xếp đơn theo giờ giao
         let parsedHour = 24;
         const timeMatch = deliveryTime.match(/(\d+)/);
         if (timeMatch) parsedHour = parseInt(timeMatch[1], 10);
 
-        dailyOrders.push({ 
-            name: userName, 
-            coords: coordinates, 
-            time: deliveryTime, 
-            hour: parsedHour,
-            price: formattedPrice 
-        });
+        dailyOrders.push({ name: userName, coords: coordinates, time: deliveryTime, hour: parsedHour, price: formattedPrice });
         dailyOrders.sort((a, b) => a.hour - b.hour);
 
-        // Tạo bảng tổng hợp cuối tin nhắn
         let summaryText = "\n\n--------------------------\n**📋 LỊCH TRÌNH CẦN GIAO HÔM NAY:**\n";
         dailyOrders.forEach((order, index) => {
-            summaryText += `\`${index + 1}.\` **${order.time}** - ${order.name} (📍 ${order.coords}) - 💵 **Thu: ${order.price}**\n`;
+            summaryText += `\`${index + 1}.\` **${order.time}** - ${order.name} (📍 Toạ độ: ${order.coords}) - 💵 **Thu: ${order.price}**\n`;
         });
 
-        // Gửi Webhook Discord
         const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
         if (webhookUrl) {
             const folderLink = `https://drive.google.com/drive/folders/${userFolderId}`;
             const mapLink = `https://www.google.com/maps?q=${coordinates.replace(/\s/g, '')}`;
-            
-            // Tin nhắn Discord (Đã thêm Số tiền)
-            const discordMessage = `<@884662992921313352> có file in mới!\n👤 Người nhận: **${userName}**\n📍 Toạ độ: **${coordinates}**\n⏰ Giờ giao hàng: **${deliveryTime}**\n💵 Cần thu: **${formattedPrice}**\n🗺️ Xem bản đồ: ${mapLink}\n📁 Link tải file: ${folderLink}${summaryText}`;
+            const discordMessage = `<@884662992921313352> có file in mới!\n👤 Người nhận: **${userName}**\n📍 Toạ độ: **${coordinates}**\n⏰ Giờ: **${deliveryTime}**\n💵 Cần thu: **${formattedPrice}**\n🗺️ Bản đồ: ${mapLink}\n📁 Link file: ${folderLink}${summaryText}`;
             
             fetch(webhookUrl, {
                 method: 'POST',
@@ -202,7 +180,8 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
             }).catch(console.error);
         }
 
-        res.status(200).json({ status: 'success' });
+        // Trả về kèm billHtml để hiển thị nút in
+        res.status(200).json({ status: 'success', billHtml: billHtml });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -260,11 +239,13 @@ app.post('/api/cloud-private', async (req, res) => {
     try {
         const { fileId } = req.body;
         
+        // 1. Lấy danh sách các quyền (permissions) hiện tại của file trên Drive
         const permissions = await drive.permissions.list({
             fileId: fileId,
             fields: 'permissions(id, type, role)'
         });
 
+        // 2. Tìm và xóa quyền có kiểu là 'anyone' (công khai)
         const publicPermission = permissions.data.permissions.find(p => p.type === 'anyone');
         if (publicPermission) {
             await drive.permissions.delete({

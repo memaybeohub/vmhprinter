@@ -266,19 +266,20 @@
                 tbody.appendChild(tr);
 
                 if (typeof item.pages === 'number') {
-                    totalPages += (item.pages * item.quantity);
-                }
-            });
+                totalPages += (item.pages * item.quantity);
+            }
+        });
 
-            document.getElementById('totalPages').textContent = totalPages;
-            
-            // Sửa công thức tính tiền: Tổng số trang * 200đ
-            currentTotalPrice = totalPages * 200;
-            
-            document.getElementById('totalPrice').textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
-        }
+        document.getElementById('totalPages').textContent = totalPages;
+        
+        // Sửa công thức tính tiền: Tổng số trang * 200đ và làm tròn xuống hàng nghìn
+        let rawPrice = totalPages * 200;
+        currentTotalPrice = Math.floor(rawPrice / 1000) * 1000;
+        
+        document.getElementById('totalPrice').textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
+    }
 
-        window.removePrintFile = function(index) {
+    window.removePrintFile = function(index) {
             selectedPrintFiles.splice(index, 1);
             renderPrintFileList();
         };

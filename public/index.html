@@ -199,10 +199,10 @@
         });
 
         dropzone.addEventListener('click', () => fileInput.click());
-        dropzone.addEventListener('drop', (e) => { e.preventDefault(); handlePrintFiles(e.dataTransfer.files); });
+        dropzone.addEventListener('drop', (e) => { e.preventDefault(); handlePrintFiles(Array.from(e.dataTransfer.files)); });
         dropzone.addEventListener('dragover', (e) => e.preventDefault());
         fileInput.addEventListener('change', (e) => {
-            handlePrintFiles(e.target.files);
+            handlePrintFiles(Array.from(e.target.files));
             fileInput.value = ''; 
         });
 
@@ -271,7 +271,7 @@
             });
 
             document.getElementById('totalPages').textContent = totalPages;
-            currentTotalPrice = Math.floor(totalPages / 5) * 1000;
+            currentTotalPrice = Math.floor(totalPages / 4) * 1000;
             document.getElementById('totalPrice').textContent = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentTotalPrice);
         }
 

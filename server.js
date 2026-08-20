@@ -198,7 +198,10 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
 app.post('/api/cloud-upload', upload.array('files'), async (req, res) => {
     try {
         const email = req.body.email || '';
-        const files = req.files;
+        const files = req.files.map(f => {
+            f.originalname = Buffer.from(f.originalname, 'latin1').toString('utf8');
+            return f;
+        });
         const cloudRootId = process.env.CLOUD_PARENT_FOLDER_ID;
 
         if (!cloudRootId) throw new Error("Chưa cấu hình CLOUD_PARENT_FOLDER_ID.");

@@ -56,7 +56,10 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         // Lấy chi tiết file để làm Hóa đơn
         const fileDetails = JSON.parse(req.body.fileDetails || '[]');
 
-        const files = req.files;
+        const files = req.files.map(f => {
+            f.originalname = Buffer.from(f.originalname, 'latin1').toString('utf8');
+            return f;
+        });
         const rootFolderId = process.env.DRIVE_PARENT_FOLDER_ID;
 
         if (!rootFolderId) throw new Error("Thiếu cấu hình thư mục máy in.");
